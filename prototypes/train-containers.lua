@@ -1,12 +1,7 @@
 local base_chest = data.raw.container["steel-chest"]
-local base_placeable = data.raw["constant-combinator"]["constant-combinator"]
 
 if not base_chest then
   error("Train Container requires the base steel-chest prototype.")
-end
-
-if not base_placeable then
-  error("Train Container requires the base constant-combinator prototype.")
 end
 
 local function train_container_length(wagons)
@@ -69,11 +64,8 @@ local function prototype_names(definition, is_infinity)
   local root_name = is_infinity and (base_name .. "-infinity") or base_name
 
   return {
-    base = base_name,
-    root = root_name,
     horizontal = root_name,
     vertical = root_name .. "-vertical",
-    placeable = root_name .. "-placeable",
   }
 end
 
@@ -176,25 +168,31 @@ local function horizontal_selection_box(length)
   }
 end
 
-local function create_container_entity(definition, orientation, is_infinity)
+local function orientation_name(definition, is_infinity, orientation)
   local names = prototype_names(definition, is_infinity)
+
+  return orientation == "vertical" and names.vertical or names.horizontal
+end
+
+local function create_container_entity(definition, orientation, is_infinity)
   local icon = icon_reference(is_infinity)
   local is_vertical = orientation == "vertical"
-  local name = is_vertical and names.vertical or names.horizontal
+  local name = orientation_name(definition, is_infinity, orientation)
   local picture = is_vertical and { layers = vertical_layers(definition.length) } or { layers = horizontal_layers(definition.length) }
 
   return {
     type = is_infinity and "infinity-container" or "container",
     name = name,
-    hidden = true,
-    hidden_in_factoriopedia = true,
-    localised_name = { "entity-name." .. names.root },
-    localised_description = { "entity-description." .. names.root },
+    hidden = is_infinity or nil,
+    hidden_in_factoriopedia = is_infinity or nil,
+    localised_name = { "entity-name." .. name },
+    localised_description = { "entity-description." .. name },
     icon = icon.icon,
     icons = copy(icon.icons),
     icon_size = icon.icon_size or base_chest.icon_size or 64,
-    flags = { "player-creation" },
-    minable = { mining_time = 0.5, result = names.root },
+    flags = { "placeable-neutral", "player-creation" },
+    minable = { mining_time = 0.5, result = name },
+    placeable_by = { item = name, count = 1 },
     max_health = base_chest.max_health,
     corpse = base_chest.corpse,
     dying_explosion = base_chest.dying_explosion,
@@ -216,67 +214,28 @@ local function create_container_entity(definition, orientation, is_infinity)
     erase_contents_when_mined = is_infinity and true or nil,
     preserve_contents_when_created = is_infinity and true or nil,
     subgroup = "storage",
-    order = "a[items]-d[train-container-" .. definition.wagons .. (is_infinity and "-infinity]" or "]"),
+    order = "a[items]-d[train-container-" .. definition.wagons .. "]-" .. (is_vertical and "b[vertical]" or "a[horizontal]") .. (is_infinity and "-infinity" or ""),
     surface_conditions = copy(base_chest.surface_conditions),
   }
 end
 
-local function create_placeable_entity(definition, is_infinity)
-  local names = prototype_names(definition, is_infinity)
+local function create_item(definition, orientation, is_infinity)
   local icon = icon_reference(is_infinity)
-  local horizontal = { layers = horizontal_layers(definition.length) }
-  local vertical = { layers = vertical_layers(definition.length) }
-  local prototype = copy(base_placeable)
-
-  prototype.name = names.placeable
-  prototype.hidden = true
-  prototype.hidden_in_factoriopedia = true
-  prototype.localised_name = { "entity-name." .. names.root }
-  prototype.localised_description = { "entity-description." .. names.root }
-  prototype.icon = icon.icon
-  prototype.icons = copy(icon.icons)
-  prototype.icon_size = icon.icon_size or base_chest.icon_size or 64
-  prototype.flags = { "placeable-neutral", "player-creation" }
-  prototype.minable = { mining_time = 0.5, result = names.root }
-  prototype.placeable_by = { item = names.root, count = 1 }
-  prototype.max_health = base_chest.max_health
-  prototype.corpse = base_chest.corpse
-  prototype.dying_explosion = base_chest.dying_explosion
-  prototype.collision_box = vertical_collision_box(definition.length)
-  prototype.selection_box = vertical_selection_box(definition.length)
-  prototype.tile_width = 1
-  prototype.tile_height = definition.length
-  prototype.sprites = {
-    north = vertical,
-    east = horizontal,
-    south = vertical,
-    west = horizontal,
-  }
-  prototype.fast_replaceable_group = nil
-  prototype.next_upgrade = nil
-  prototype.subgroup = "storage"
-  prototype.order = "a[items]-d[train-container-" .. definition.wagons .. (is_infinity and "-infinity]" or "]")
-  prototype.surface_conditions = copy(base_chest.surface_conditions)
-
-  return prototype
-end
-
-local function create_item(definition, is_infinity)
-  local names = prototype_names(definition, is_infinity)
-  local icon = icon_reference(is_infinity)
+  local name = orientation_name(definition, is_infinity, orientation)
+  local is_vertical = orientation == "vertical"
 
   return {
     type = "item",
-    name = names.root,
+    name = name,
     hidden = is_infinity or nil,
     icon = icon.icon,
     icons = copy(icon.icons),
     icon_size = icon.icon_size or base_chest.icon_size or 64,
     subgroup = is_infinity and "other" or "storage",
     order = is_infinity
-      and ("c[item]-o[train-container-infinity]-" .. definition.wagons)
-      or ("a[items]-d[train-container-" .. definition.wagons .. "]"),
-    place_result = names.placeable,
+      and ("c[item]-o[train-container-infinity]-" .. definition.wagons .. (is_vertical and "-b[vertical]" or "-a[horizontal]"))
+      or ("a[items]-d[train-container-" .. definition.wagons .. "]-" .. (is_vertical and "b[vertical]" or "a[horizontal]")),
+    place_result = name,
     stack_size = 10,
     inventory_move_sound = copy(data.raw.item["steel-chest"] and data.raw.item["steel-chest"].inventory_move_sound),
     pick_sound = copy(data.raw.item["steel-chest"] and data.raw.item["steel-chest"].pick_sound),
@@ -284,18 +243,18 @@ local function create_item(definition, is_infinity)
   }
 end
 
-local function create_recipe(definition)
-  local names = prototype_names(definition, false)
+local function create_recipe(definition, orientation)
+  local name = orientation_name(definition, false, orientation)
 
   return {
     type = "recipe",
-    name = names.root,
+    name = name,
     enabled = true,
     ingredients = {
       { type = "item", name = "steel-chest", amount = definition.length },
     },
     results = {
-      { type = "item", name = names.root, amount = 1 },
+      { type = "item", name = name, amount = 1 },
     },
   }
 end
@@ -303,16 +262,14 @@ end
 local prototypes = {}
 
 for _, definition in ipairs(definitions) do
-  table.insert(prototypes, create_container_entity(definition, "horizontal", false))
-  table.insert(prototypes, create_container_entity(definition, "vertical", false))
-  table.insert(prototypes, create_placeable_entity(definition, false))
-  table.insert(prototypes, create_item(definition, false))
-  table.insert(prototypes, create_recipe(definition))
+  for _, orientation in ipairs({ "horizontal", "vertical" }) do
+    table.insert(prototypes, create_container_entity(definition, orientation, false))
+    table.insert(prototypes, create_item(definition, orientation, false))
+    table.insert(prototypes, create_recipe(definition, orientation))
 
-  table.insert(prototypes, create_container_entity(definition, "horizontal", true))
-  table.insert(prototypes, create_container_entity(definition, "vertical", true))
-  table.insert(prototypes, create_placeable_entity(definition, true))
-  table.insert(prototypes, create_item(definition, true))
+    table.insert(prototypes, create_container_entity(definition, orientation, true))
+    table.insert(prototypes, create_item(definition, orientation, true))
+  end
 end
 
 table.insert(prototypes, {
