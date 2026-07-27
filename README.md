@@ -23,14 +23,16 @@ This stage intentionally does not implement train detection, loading, unloading,
 
 ## Infinity Containers
 
-The startup setting `train-container-enable-infinity-containers` adds separate `infinity-container` variants for blueprint design and testing:
+The mod always registers hidden `infinity-container` variants so blueprints containing them do not lose unknown entities when opened in a world where the infinity UI is not enabled. The startup setting `train-container-show-infinity-containers` only controls whether their items and recipes are visible and craftable:
 
 - `train-container-1-infinity`
 - `train-container-2-infinity`
 - `train-container-3-infinity`
 - `train-container-4-infinity`
 
-These variants use the same footprints, rotation placement flow, inventory sizes, and circuit connector support as the normal containers, but open the infinity-container GUI with `gui_mode = "all"`. They are separate prototypes instead of changing the normal containers' prototype type, which keeps normal saves and blueprints stable when the option is disabled.
+These variants use the same footprints, rotation placement flow, inventory sizes, and circuit connector support as the normal containers, but open the infinity-container GUI with `gui_mode = "all"`. They are separate prototypes instead of changing the normal containers' prototype type, which keeps normal saves and blueprints stable.
+
+When the infinity setting is disabled, pasted ghosts for infinity train containers are converted to the matching normal train container ghost. Blueprints created from infinity train containers are also normalized to the normal train container names, so blueprint books made while designing with infinity containers remain usable in ordinary worlds.
 
 ## Rotation Approach
 
