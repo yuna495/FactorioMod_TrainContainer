@@ -41,7 +41,7 @@ For Factorio 2.0.77 compatibility, each size has two real container prototypes:
 - `train-container-N`: horizontal `length x 1`
 - `train-container-N-vertical`: vertical `1 x length`
 
-The player-facing item remains `train-container-N`. It places a short-lived `simple-entity-with-owner` placeholder named `train-container-N-placeable`; `control.lua` immediately replaces that placeholder with the correct real `container` based on placement direction. The placeholder is not a persistent storage/helper entity and has no inventory.
+The player-facing item remains `train-container-N`. It places a short-lived hidden `constant-combinator`-based placeholder named `train-container-N-placeable`; `control.lua` immediately replaces that placeholder with the correct real `container` based on placement direction. The placeholder is not a persistent storage/helper entity and has no inventory. It is circuit-connectable only so blueprint and copy/paste wire connections can survive until the real container is created.
 
 The real horizontal/vertical containers are marked `hidden` and do not advertise `placeable_by`; this keeps the editor entity list from showing separate fixed horizontal, rotatable placeholder, and fixed vertical entries for each size. The player/editor-facing item places the short-lived placeholder, which keeps each size to one rotatable entry.
 

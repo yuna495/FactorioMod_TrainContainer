@@ -1,7 +1,12 @@
 local base_chest = data.raw.container["steel-chest"]
+local base_placeable = data.raw["constant-combinator"]["constant-combinator"]
 
 if not base_chest then
   error("Train Container requires the base steel-chest prototype.")
+end
+
+if not base_placeable then
+  error("Train Container requires the base constant-combinator prototype.")
 end
 
 local function train_container_length(wagons)
@@ -221,36 +226,39 @@ local function create_placeable_entity(definition, is_infinity)
   local icon = icon_reference(is_infinity)
   local horizontal = { layers = horizontal_layers(definition.length) }
   local vertical = { layers = vertical_layers(definition.length) }
+  local prototype = copy(base_placeable)
 
-  return {
-    type = "simple-entity-with-owner",
-    name = names.placeable,
-    hidden = true,
-    localised_name = { "entity-name." .. names.root },
-    localised_description = { "entity-description." .. names.root },
-    icon = icon.icon,
-    icons = copy(icon.icons),
-    icon_size = icon.icon_size or base_chest.icon_size or 64,
-    flags = { "placeable-neutral", "player-creation" },
-    minable = { mining_time = 0.5, result = names.root },
-    placeable_by = { item = names.root, count = 1 },
-    max_health = base_chest.max_health,
-    corpse = base_chest.corpse,
-    dying_explosion = base_chest.dying_explosion,
-    collision_box = vertical_collision_box(definition.length),
-    selection_box = vertical_selection_box(definition.length),
-    tile_width = 1,
-    tile_height = definition.length,
-    picture = {
-      north = vertical,
-      east = horizontal,
-      south = vertical,
-      west = horizontal,
-    },
-    subgroup = "storage",
-    order = "a[items]-d[train-container-" .. definition.wagons .. (is_infinity and "-infinity]" or "]"),
-    surface_conditions = copy(base_chest.surface_conditions),
+  prototype.name = names.placeable
+  prototype.hidden = true
+  prototype.hidden_in_factoriopedia = true
+  prototype.localised_name = { "entity-name." .. names.root }
+  prototype.localised_description = { "entity-description." .. names.root }
+  prototype.icon = icon.icon
+  prototype.icons = copy(icon.icons)
+  prototype.icon_size = icon.icon_size or base_chest.icon_size or 64
+  prototype.flags = { "placeable-neutral", "player-creation" }
+  prototype.minable = { mining_time = 0.5, result = names.root }
+  prototype.placeable_by = { item = names.root, count = 1 }
+  prototype.max_health = base_chest.max_health
+  prototype.corpse = base_chest.corpse
+  prototype.dying_explosion = base_chest.dying_explosion
+  prototype.collision_box = vertical_collision_box(definition.length)
+  prototype.selection_box = vertical_selection_box(definition.length)
+  prototype.tile_width = 1
+  prototype.tile_height = definition.length
+  prototype.sprites = {
+    north = vertical,
+    east = horizontal,
+    south = vertical,
+    west = horizontal,
   }
+  prototype.fast_replaceable_group = nil
+  prototype.next_upgrade = nil
+  prototype.subgroup = "storage"
+  prototype.order = "a[items]-d[train-container-" .. definition.wagons .. (is_infinity and "-infinity]" or "]")
+  prototype.surface_conditions = copy(base_chest.surface_conditions)
+
+  return prototype
 end
 
 local function create_item(definition, is_infinity)

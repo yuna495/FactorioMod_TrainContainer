@@ -239,6 +239,68 @@ local function apply_train_container_tags(entity, tags)
   end
 end
 
+local function connector_connections(connector)
+  if not connector or not connector.valid then
+    return {}
+  end
+
+  local ok, connections = pcall(function()
+    return connector.connections
+  end)
+
+  return ok and connections or {}
+end
+
+local function collect_wire_connections(entity)
+  local ok, connectors = pcall(function()
+    return entity.get_wire_connectors(true)
+  end)
+
+  if not ok or not connectors then
+    return nil
+  end
+
+  local wires = {}
+
+  for connector_id, connector in pairs(connectors) do
+    if connector and connector.valid then
+      for _, connection in ipairs(connector_connections(connector)) do
+        local target = connection.target
+
+        if target and target.valid and target.owner ~= entity then
+          table.insert(wires, {
+            source_connector_id = connector.wire_connector_id or connector_id,
+            target = target,
+            origin = connection.origin,
+          })
+        end
+      end
+    end
+  end
+
+  return next(wires) and wires or nil
+end
+
+local function restore_wire_connections(entity, wires)
+  if not wires then
+    return
+  end
+
+  for _, wire in ipairs(wires) do
+    if wire.target and wire.target.valid then
+      local ok, connector = pcall(function()
+        return entity.get_wire_connector(wire.source_connector_id, true)
+      end)
+
+      if ok and connector and connector.valid then
+        pcall(function()
+          connector.connect_to(wire.target, false, wire.origin)
+        end)
+      end
+    end
+  end
+end
+
 local function replace_placeable(entity, tags)
   local target_name = replacement_name_for_placeable(entity)
 
@@ -252,6 +314,7 @@ local function replace_placeable(entity, tags)
   local direction = entity.direction
   local source_name = entity.name
   local quality = quality_name(entity)
+  local wires = collect_wire_connections(entity)
 
   entity.destroy()
 
@@ -278,6 +341,7 @@ local function replace_placeable(entity, tags)
   end
 
   apply_train_container_tags(created, tags)
+  restore_wire_connections(created, wires)
 end
 
 local function replace_real_container_ghost(entity)
@@ -615,6 +679,110 @@ local function mark_mapped_real_entities(mapping, entities)
   return represented
 end
 
+local function mapped_entity_numbers(mapping, entities)
+  local numbers = {}
+
+  if not mapping then
+    return numbers
+  end
+
+  for index, entity in ipairs(entities) do
+    local source = source_from_mapping(mapping, entity, index)
+    local key = entity_source_key(source)
+
+    if key then
+      numbers[key] = entity.entity_number or index
+    end
+  end
+
+  return numbers
+end
+
+local function entities_by_blueprint_number(entities)
+  local by_number = {}
+
+  for index, entity in ipairs(entities) do
+    by_number[entity.entity_number or index] = entity
+  end
+
+  return by_number
+end
+
+local function canonical_wire_key(source_number, source_connector_id, target_number, target_connector_id)
+  local first_number = source_number
+  local first_connector_id = source_connector_id
+  local second_number = target_number
+  local second_connector_id = target_connector_id
+
+  if target_number < source_number
+    or (target_number == source_number and tostring(target_connector_id) < tostring(source_connector_id))
+  then
+    first_number = target_number
+    first_connector_id = target_connector_id
+    second_number = source_number
+    second_connector_id = source_connector_id
+  end
+
+  return table.concat({
+    first_number,
+    tostring(first_connector_id),
+    second_number,
+    tostring(second_connector_id),
+  }, ":")
+end
+
+local function blueprint_wire_keys(entities)
+  local keys = {}
+
+  for _, entity in ipairs(entities) do
+    if entity.wires then
+      for _, wire in ipairs(entity.wires) do
+        keys[canonical_wire_key(wire[1], wire[2], wire[3], wire[4])] = true
+      end
+    end
+  end
+
+  return keys
+end
+
+local function append_blueprint_wires_for_sources(entities, sources, source_numbers)
+  local by_number = entities_by_blueprint_number(entities)
+  local existing_wires = blueprint_wire_keys(entities)
+  local changed = false
+
+  for _, source in ipairs(sources) do
+    local source_number = source_numbers[entity_source_key(source)]
+
+    if source_number then
+      local source_entry = by_number[source_number]
+
+      for _, wire in ipairs(collect_wire_connections(source) or {}) do
+        local target_owner = wire.target.owner
+        local target_number = source_numbers[entity_source_key(target_owner)]
+
+        if source_entry and target_number then
+          local target_connector_id = wire.target.wire_connector_id
+          local key = canonical_wire_key(source_number, wire.source_connector_id, target_number, target_connector_id)
+
+          if not existing_wires[key] then
+            source_entry.wires = source_entry.wires or {}
+            table.insert(source_entry.wires, {
+              source_number,
+              wire.source_connector_id,
+              target_number,
+              target_connector_id,
+            })
+            existing_wires[key] = true
+            changed = true
+          end
+        end
+      end
+    end
+  end
+
+  return changed
+end
+
 local function replace_blueprint_real_entities(event, blueprint)
   local entities = get_blueprint_entities(blueprint)
 
@@ -624,6 +792,8 @@ local function replace_blueprint_real_entities(event, blueprint)
 
   local mapping = blueprint_mapping_from_event(event)
   local represented_sources = mark_mapped_real_entities(mapping, entities)
+  local source_numbers = mapped_entity_numbers(mapping, entities)
+  local selected_real_entities = collect_selected_real_entities(event)
   local tags_to_set = {}
   local changed = false
   local max_entity_number = 0
@@ -646,6 +816,12 @@ local function replace_blueprint_real_entities(event, blueprint)
       }
 
       entities[index] = rewritten
+      local source = source_from_mapping(mapping, rewritten, index)
+      local source_key = entity_source_key(source)
+
+      if source_key then
+        source_numbers[source_key] = rewritten.entity_number
+      end
 
       if tags then
         table.insert(tags_to_set, { entity_number = rewritten.entity_number, tags = tags })
@@ -663,7 +839,7 @@ local function replace_blueprint_real_entities(event, blueprint)
 
   local offset = blueprint_offset_from_mapping(mapping, entities)
 
-  for _, source in ipairs(collect_selected_real_entities(event)) do
+  for _, source in ipairs(selected_real_entities) do
     local source_key = entity_source_key(source)
     local target = real_entity_placeables[source.name]
 
@@ -695,9 +871,14 @@ local function replace_blueprint_real_entities(event, blueprint)
         table.insert(entities, entry)
         existing_entries[entry_key] = true
         represented_sources[source_key] = true
+        source_numbers[source_key] = entry.entity_number
         changed = true
       end
     end
+  end
+
+  if append_blueprint_wires_for_sources(entities, selected_real_entities, source_numbers) then
+    changed = true
   end
 
   if changed and set_blueprint_entities(blueprint, entities) then
