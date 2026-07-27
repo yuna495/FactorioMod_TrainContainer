@@ -23,7 +23,7 @@ This stage intentionally does not implement train detection, loading, unloading,
 
 ## Infinity Containers
 
-The mod always registers hidden `infinity-container` variants so blueprints containing them do not lose unknown entities when opened in a world where the infinity UI is not enabled. The startup setting `train-container-show-infinity-containers` only controls whether their items and recipes are visible and craftable:
+The mod always registers hidden `infinity-container` variants for editor-mode blueprint design:
 
 - `train-container-1-infinity`
 - `train-container-2-infinity`
@@ -32,7 +32,7 @@ The mod always registers hidden `infinity-container` variants so blueprints cont
 
 These variants use the same footprints, rotation placement flow, inventory sizes, and circuit connector support as the normal containers, but open the infinity-container GUI with `gui_mode = "all"`. They are separate prototypes instead of changing the normal containers' prototype type, which keeps normal saves and blueprints stable.
 
-When the infinity setting is disabled, pasted ghosts for infinity train containers are converted to the matching normal train container ghost. Blueprints created from infinity train containers are also normalized to the normal train container names, so blueprint books made while designing with infinity containers remain usable in ordinary worlds.
+Infinity train container items have no recipes and are hidden from normal crafting. Like the base game's `infinity-chest`, they are sorted into the `other` item subgroup for editor/cheat use. Blueprints containing them keep the infinity entities instead of being rewritten to normal containers.
 
 ## Rotation Approach
 
@@ -43,7 +43,7 @@ For Factorio 2.0.77 compatibility, each size has two real container prototypes:
 
 The player-facing item remains `train-container-N`. It places a short-lived `simple-entity-with-owner` placeholder named `train-container-N-placeable`; `control.lua` immediately replaces that placeholder with the correct real `container` based on placement direction. The placeholder is not a persistent storage/helper entity and has no inventory.
 
-The vertical real container and the placement placeholder are marked `hidden` so the compatibility prototypes do not appear as duplicate player-facing containers.
+The real horizontal/vertical containers are marked `hidden` and are not directly placeable from the editor entity list. The player/editor-facing item places the short-lived placeholder, which keeps each size to one rotatable entry instead of separate horizontal, rotatable, and vertical entries.
 
 Rotate the container while it is still in the player's hand to choose the horizontal or vertical footprint before placement. Already placed containers are not script-rotated in this stage, because swapping a live long chest into the other orientation can collide with neighboring buildings and would require extra user-facing handling outside the first-stage scope. Blueprint rotation is still handled by swapping the container prototype names before Factorio applies its normal blueprint rotation.
 

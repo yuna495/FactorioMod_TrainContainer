@@ -15,8 +15,6 @@ local definitions = {
   { wagons = 4, length = train_container_length(4), inventory_size = 384 },
 }
 
-local infinity_setting = settings.startup["train-container-show-infinity-containers"]
-local show_infinity_containers = infinity_setting and infinity_setting.value or false
 local entity_graphics_path = "__TrainContainer__/graphics/entity/train-container"
 
 local horizontal_segments = {
@@ -183,13 +181,13 @@ local function create_container_entity(definition, orientation, is_infinity)
   return {
     type = is_infinity and "infinity-container" or "container",
     name = name,
-    hidden = (is_vertical or (is_infinity and not show_infinity_containers)) or nil,
+    hidden = true,
     localised_name = { "entity-name." .. names.root },
     localised_description = { "entity-description." .. names.root },
     icon = icon.icon,
     icons = copy(icon.icons),
     icon_size = icon.icon_size or base_chest.icon_size or 64,
-    flags = { "placeable-neutral", "player-creation" },
+    flags = { "player-creation" },
     minable = { mining_time = 0.5, result = names.root },
     placeable_by = { item = names.root, count = 1 },
     max_health = base_chest.max_health,
@@ -262,12 +260,14 @@ local function create_item(definition, is_infinity)
   return {
     type = "item",
     name = names.root,
-    hidden = (is_infinity and not show_infinity_containers) or nil,
+    hidden = is_infinity or nil,
     icon = icon.icon,
     icons = copy(icon.icons),
     icon_size = icon.icon_size or base_chest.icon_size or 64,
-    subgroup = "storage",
-    order = "a[items]-d[train-container-" .. definition.wagons .. (is_infinity and "-infinity]" or "]"),
+    subgroup = is_infinity and "other" or "storage",
+    order = is_infinity
+      and ("c[item]-o[train-container-infinity]-" .. definition.wagons)
+      or ("a[items]-d[train-container-" .. definition.wagons .. "]"),
     place_result = names.placeable,
     stack_size = 10,
     inventory_move_sound = copy(data.raw.item["steel-chest"] and data.raw.item["steel-chest"].inventory_move_sound),
@@ -276,14 +276,13 @@ local function create_item(definition, is_infinity)
   }
 end
 
-local function create_recipe(definition, is_infinity)
-  local names = prototype_names(definition, is_infinity)
+local function create_recipe(definition)
+  local names = prototype_names(definition, false)
 
   return {
     type = "recipe",
     name = names.root,
-    hidden = (is_infinity and not show_infinity_containers) or nil,
-    enabled = (not is_infinity) or show_infinity_containers,
+    enabled = true,
     ingredients = {
       { type = "item", name = "steel-chest", amount = definition.length },
     },
@@ -300,13 +299,12 @@ for _, definition in ipairs(definitions) do
   table.insert(prototypes, create_container_entity(definition, "vertical", false))
   table.insert(prototypes, create_placeable_entity(definition, false))
   table.insert(prototypes, create_item(definition, false))
-  table.insert(prototypes, create_recipe(definition, false))
+  table.insert(prototypes, create_recipe(definition))
 
   table.insert(prototypes, create_container_entity(definition, "horizontal", true))
   table.insert(prototypes, create_container_entity(definition, "vertical", true))
   table.insert(prototypes, create_placeable_entity(definition, true))
   table.insert(prototypes, create_item(definition, true))
-  table.insert(prototypes, create_recipe(definition, true))
 end
 
 table.insert(prototypes, {
