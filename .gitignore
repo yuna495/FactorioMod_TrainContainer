@@ -1,0 +1,35 @@
+# Factorio local/runtime output
+*.zip
+*.log
+*.tmp
+*.bak
+*.old
+
+# Codex/verification scratch directories
+.verify-*
+.runtime-*
+.factorio-*
+.probe-*
+.nameprobe-*
+
+# Local Factorio profile output when using an isolated write-data directory
+saves/
+mods/
+script-output/
+temp/
+archive/
+scenarios/
+campaigns/
+blueprint-storage-backups/
+player-data.json
+
+# Development-only third-party reference copy.
+# Runtime assets reused from WideChests are copied into graphics/ and attributed
+# in THIRD_PARTY_LICENSES.md, so the mod does not depend on this folder.
+reference/
+
+# Editor and OS noise
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
