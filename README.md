@@ -47,6 +47,8 @@ The real horizontal/vertical containers are marked `hidden` and do not advertise
 
 Rotate the container while it is still in the player's hand to choose the horizontal or vertical footprint before placement. Already placed containers are not script-rotated in this stage, because swapping a live long chest into the other orientation can collide with neighboring buildings and would require extra user-facing handling outside the first-stage scope. Blueprints made from placed train containers are normalized back to the rotatable placeholder so construction robots can build them from the visible item; existing blueprints that still contain fixed internal names are converted when their ghosts are pasted.
 
+Because the hidden real horizontal/vertical containers do not expose `placeable_by`, Factorio 2.0.77 may omit them from newly created blueprints. `control.lua` handles `on_player_setup_blueprint`, scans the selected area for real train containers, and adds matching rotatable placeholder entries to the blueprint. Infinity-container filter settings are carried through placeholder blueprint tags and restored onto the real infinity container when it is built.
+
 The unpacked working folder is named `TrainContainer`, so `info.json.name` is kept as `TrainContainer` for local loading. The gameplay prototype IDs are the requested `train-container-1` through `train-container-4`.
 
 ## Size Math
