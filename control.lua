@@ -1,6 +1,7 @@
 local definitions = { 1, 2, 3, 4 }
 local variants = { "", "-infinity" }
 local placeable_entities = {}
+local real_entity_placeables = {}
 local blueprint_rotate_targets = {}
 
 for _, wagons in ipairs(definitions) do
@@ -14,6 +15,15 @@ for _, wagons in ipairs(definitions) do
     placeable_entities[root_name .. "-placeable"] = {
       horizontal = horizontal_name,
       vertical = vertical_name,
+    }
+
+    real_entity_placeables[horizontal_name] = {
+      name = root_name .. "-placeable",
+      direction = defines.direction.east,
+    }
+    real_entity_placeables[vertical_name] = {
+      name = root_name .. "-placeable",
+      direction = defines.direction.north,
     }
 
     blueprint_rotate_targets[horizontal_name] = vertical_name
@@ -80,21 +90,19 @@ local function replace_placeable(entity)
   end
 end
 
-local function replace_placeable_ghost(entity)
+local function replace_real_container_ghost(entity)
   if entity.name ~= "entity-ghost" then
     return false
   end
 
-  local variants = placeable_entities[entity.ghost_name]
+  local target = real_entity_placeables[entity.ghost_name]
 
-  if not variants then
+  if not target then
     return false
   end
 
   local surface = entity.surface
-  local target_name = is_horizontal_direction(entity.direction) and variants.horizontal or variants.vertical
   local position = entity.position
-  local direction = entity.direction
   local force = entity.force
   local quality = quality_name(entity)
 
@@ -102,9 +110,9 @@ local function replace_placeable_ghost(entity)
 
   surface.create_entity({
     name = "entity-ghost",
-    inner_name = target_name,
+    inner_name = target.name,
     position = position,
-    direction = direction,
+    direction = target.direction,
     force = force,
     quality = quality,
     create_build_effect_smoke = false,
@@ -164,6 +172,50 @@ local function swap_blueprint_container_names(player)
   return changed
 end
 
+local function replace_blueprint_real_entities(blueprint)
+  if not blueprint or not blueprint.valid_for_read or not blueprint.is_blueprint then
+    return false
+  end
+
+  local entities = blueprint.get_blueprint_entities()
+
+  if not entities then
+    return false
+  end
+
+  local changed = false
+
+  for _, entity in ipairs(entities) do
+    local target = real_entity_placeables[entity.name]
+
+    if target then
+      entity.name = target.name
+      entity.direction = target.direction
+      changed = true
+    end
+  end
+
+  if changed then
+    blueprint.set_blueprint_entities(entities)
+  end
+
+  return changed
+end
+
+local function blueprint_from_setup_event(event)
+  if event.stack and event.stack.valid_for_read and event.stack.is_blueprint then
+    return event.stack
+  end
+
+  local player = game.get_player(event.player_index)
+
+  if player and player.blueprint_to_setup and player.blueprint_to_setup.valid_for_read and player.blueprint_to_setup.is_blueprint then
+    return player.blueprint_to_setup
+  end
+
+  return nil
+end
+
 local function on_created_entity(event)
   local entity = entity_from_event(event)
 
@@ -171,11 +223,15 @@ local function on_created_entity(event)
     return
   end
 
-  if replace_placeable_ghost(entity) then
+  if replace_real_container_ghost(entity) then
     return
   end
 
   replace_placeable(entity)
+end
+
+local function on_blueprint_setup(event)
+  replace_blueprint_real_entities(blueprint_from_setup_event(event))
 end
 
 local function on_rotate_input(event)
@@ -204,3 +260,5 @@ end
 script.on_event(build_events, on_created_entity)
 script.on_event("train-container-rotate", on_rotate_input)
 script.on_event("train-container-reverse-rotate", on_rotate_input)
+script.on_event(defines.events.on_player_setup_blueprint, on_blueprint_setup)
+script.on_event(defines.events.on_player_configured_blueprint, on_blueprint_setup)
