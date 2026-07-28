@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "title": "Train Container",
   "author": "yuna495",
-  "description": "Adds one-tile-wide train-length containers for 1 to 4 cargo wagons.",
+  "description": "Adds Merging Chests based one-tile-wide train containers and editor-only infinity variants.",
   "factorio_version": "2.0",
   "dependencies": [
     "base >= 2.0.77"

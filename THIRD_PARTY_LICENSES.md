@@ -2,7 +2,7 @@
 
 ## WideChests
 
-Train Container reuses the following image assets from WideChests:
+Train Container includes forked and modified source code from WideChests, and reuses the following image assets from WideChests:
 
 - `graphics/entity/train-container/wide-chest/wide-chest.png`
 - `graphics/entity/train-container/wide-chest/wide-chest-shadow.png`
@@ -20,6 +20,9 @@ Project: Merging Chests / WideChests
 Author: Atria1234
 Repository: https://github.com/Atria1234/WideChests
 License: MIT
+
+Modifications for Train Container are copyright (c) 2026 yuna495 and contributors.
+The original MIT license notice below is retained for the forked WideChests portions.
 
 MIT License
 
