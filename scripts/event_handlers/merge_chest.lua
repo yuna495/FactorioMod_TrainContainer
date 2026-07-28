@@ -197,12 +197,11 @@ end
 local function on_player_selected_area(event)
 	if event.item and event.item == MergingChests.merge_selection_tool_name then
 		local player = game.players[event.player_index]
-		MergingChests.refresh_player_merge_mode_gui(player)
 
 		local entity_groups = group_by_name(event.entities)
 		for entity_name, group in pairs(entity_groups) do
 			for is_ghost, entities in pairs(group) do
-				local target_entity_name = MergingChests.get_merge_target_chest_name(player, entity_name)
+				local target_entity_name = MergingChests.get_merge_target_chest_name(entity_name)
 				for _, chest_group_to_merge in ipairs(group_chests(entities, target_entity_name, is_ghost)) do
 					if is_ghost or player.mod_settings[MergingChests.setting_names.allow_delete_items].value or MergingChests.can_move_inventories(chest_group_to_merge.entities, chest_group_to_merge.merged_chest_name, bounding_box.area(chest_group_to_merge.bounding_box)) then
 						local total_bar = MergingChests.get_total_bar(chest_group_to_merge.entities, is_ghost)

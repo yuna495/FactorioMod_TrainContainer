@@ -101,3 +101,5 @@ MergingChests.create_mergeable_chest(
 	},
 	MergingChests.steel_chest_segments
 )
+
+table.insert(data.raw['selection-tool'][MergingChests.merge_selection_tool_name].select.entity_filters, 'infinity-chest')

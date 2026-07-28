@@ -1,11 +1,9 @@
 require('init')
 require('control_init')
 
-require('scripts.event_handlers.gui')
 require('scripts.event_handlers.merge_chest')
 require('scripts.event_handlers.rotate_blueprint')
 require('scripts.event_handlers.split_chest')
-require('scripts.event_handlers.blueprint_restrictions')
 
 commands.add_command(
 	'train-container-clean-cargoships-bridges',

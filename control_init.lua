@@ -213,57 +213,8 @@ function MergingChests.reconnect_circuits(from_entities, to_entities)
 	end
 end
 
-MergingChests.merge_modes = {
-	normal = 'normal',
-	infinity = 'infinity'
-}
-
-MergingChests.gui_names = {
-	frame = MergingChests.prefix_with_modname('merge-mode-frame'),
-	normal = MergingChests.prefix_with_modname('merge-mode-normal'),
-	infinity = MergingChests.prefix_with_modname('merge-mode-infinity')
-}
-
-local function ensure_storage()
-	storage.train_container = storage.train_container or {}
-	storage.train_container.player_modes = storage.train_container.player_modes or {}
-end
-
-local function on_init_or_configuration_changed()
-	ensure_storage()
-end
-
-script.on_init(on_init_or_configuration_changed)
-script.on_configuration_changed(on_init_or_configuration_changed)
-
-function MergingChests.can_player_use_infinity(player)
-	return player and player.valid and (player.controller_type == defines.controllers.editor or player.cheat_mode)
-end
-
-function MergingChests.get_player_merge_mode(player)
-	ensure_storage()
-
-	local mode = storage.train_container.player_modes[player.index] or MergingChests.merge_modes.normal
-	if mode == MergingChests.merge_modes.infinity and not MergingChests.can_player_use_infinity(player) then
-		mode = MergingChests.merge_modes.normal
-		storage.train_container.player_modes[player.index] = mode
-	end
-
-	return mode
-end
-
-function MergingChests.set_player_merge_mode(player, mode)
-	ensure_storage()
-
-	if mode == MergingChests.merge_modes.infinity and not MergingChests.can_player_use_infinity(player) then
-		mode = MergingChests.merge_modes.normal
-	end
-
-	storage.train_container.player_modes[player.index] = mode
-end
-
-function MergingChests.get_merge_target_chest_name(player, source_chest_name)
-	if source_chest_name == MergingChests.chest_names.steel and MergingChests.get_player_merge_mode(player) == MergingChests.merge_modes.infinity then
+function MergingChests.get_merge_target_chest_name(source_chest_name)
+	if source_chest_name == 'infinity-chest' then
 		return MergingChests.chest_names.infinity
 	end
 
