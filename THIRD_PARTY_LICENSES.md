@@ -1,28 +1,35 @@
-# Third Party Licenses
+# Third-Party Licenses
 
 ## WideChests
 
-Train Container includes forked and modified source code from WideChests, and reuses the following image assets from WideChests:
-
-- `graphics/entity/train-container/wide-chest/wide-chest.png`
-- `graphics/entity/train-container/wide-chest/wide-chest-shadow.png`
-- `graphics/entity/train-container/high-chest/high-chest.png`
-- `graphics/entity/train-container/high-chest/high-chest-shadow.png`
-
-Source files:
-
-- `reference/WideChests/graphics/entity/steel-chest/wide-chest/wide-chest.png`
-- `reference/WideChests/graphics/entity/steel-chest/wide-chest/wide-chest-shadow.png`
-- `reference/WideChests/graphics/entity/steel-chest/high-chest/high-chest.png`
-- `reference/WideChests/graphics/entity/steel-chest/high-chest/high-chest-shadow.png`
+Train Container contains forked and modified source code from the WideChests project and reuses image assets originally distributed with WideChests.
 
 Project: Merging Chests / WideChests
 Author: Atria1234
-Repository: https://github.com/Atria1234/WideChests
+Repository: <https://github.com/Atria1234/WideChests>
 License: MIT
 
-Modifications for Train Container are copyright (c) 2026 yuna495 and contributors.
-The original MIT license notice below is retained for the forked WideChests portions.
+### Reused assets
+
+The following files in Train Container are derived from WideChests assets:
+
+* `graphics/entity/train-container/wide-chest/wide-chest.png`
+* `graphics/entity/train-container/wide-chest/wide-chest-shadow.png`
+* `graphics/entity/train-container/high-chest/high-chest.png`
+* `graphics/entity/train-container/high-chest/high-chest-shadow.png`
+
+Corresponding original paths in the WideChests repository:
+
+* `graphics/entity/steel-chest/wide-chest/wide-chest.png`
+* `graphics/entity/steel-chest/wide-chest/wide-chest-shadow.png`
+* `graphics/entity/steel-chest/high-chest/high-chest.png`
+* `graphics/entity/steel-chest/high-chest/high-chest-shadow.png`
+
+Modifications and additional Train Container code are copyright (c) 2026 yuna495 and contributors.
+
+The following copyright notice and license text are retained for the portions derived from WideChests.
+
+---
 
 MIT License
 
