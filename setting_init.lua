@@ -68,43 +68,12 @@ function MergingChests.create_mergeable_chest_setting(chest_name, options)
     if options.size_settings then
         data:extend({
             {
-                name = MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_width, chest_name),
+                name = MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_length, chest_name),
                 type = 'int-setting',
                 setting_type = 'startup',
                 minimum_value = 2,
                 default_value = 10,
                 order = '99-'..(options.order or chest_name)..'-02'
-            },
-            {
-                name = MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_height, chest_name),
-                type = 'int-setting',
-                setting_type = 'startup',
-                minimum_value = 2,
-                default_value = 10,
-                order = '99-'..(options.order or chest_name)..'-03'
-            },
-            {
-                name = MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_area, chest_name),
-                type = 'int-setting',
-                setting_type = 'startup',
-                minimum_value = 2,
-                default_value = 100,
-                order = '99-'..(options.order or chest_name)..'-04'
-            },
-            {
-                name = MergingChests.chest_specific_setting_name(MergingChests.setting_names.whitelist, chest_name),
-                type = 'string-setting',
-                setting_type = 'startup',
-                default_value = 'NxN',
-                allow_blank = true,
-                order = '99-'..(options.order or chest_name)..'-05'
-            },
-            {
-                name = MergingChests.chest_specific_setting_name(MergingChests.setting_names.mirror_whitelist, chest_name),
-                type = 'bool-setting',
-                setting_type = 'startup',
-                default_value = false,
-                order = '99-'..(options.order or chest_name)..'-06'
             }
         })
     end
@@ -185,11 +154,7 @@ end
 --- @param chest_name string
 function MergingChests.delete_chest_name_settings(chest_name)
     data.raw['string-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.mergeable_chest, chest_name)] = nil
-    data.raw['int-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_width, chest_name)] = nil
-    data.raw['int-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_height, chest_name)] = nil
-    data.raw['int-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_area, chest_name)] = nil
-    data.raw['string-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.whitelist, chest_name)] = nil
-    data.raw['bool-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.mirror_whitelist, chest_name)] = nil
+    data.raw['int-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.max_length, chest_name)] = nil
     data.raw['int-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.inventory_size_limit, chest_name)] = nil
     data.raw['double-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.inventory_size_multiplier, chest_name)] = nil
     data.raw['int-setting'][MergingChests.chest_specific_setting_name(MergingChests.setting_names.warehouse_threshold, chest_name)] = nil

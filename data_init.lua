@@ -276,33 +276,33 @@ function MergingChests.create_mergeable_chest(entity_data, segments_data)
 	end
 
 	local mod_settings = MergingChests.get_mod_settings(entity_data.chest_name)
-	local max_area = 0
+	local max_item_count = 0
 
 	if enable_chest and segments_data.high_segments then
-		for height = 2, math.min(mod_settings.max_height, mod_settings.max_area) do
+		for height = 2, mod_settings.max_length do
 			if MergingChests.is_size_allowed(1, height, entity_data.chest_name) then
 				data:extend({ create_high_chest_entity(entity_data, segments_data.high_segments, height) })
-				max_area = math.max(max_area, height)
+				max_item_count = math.max(max_item_count, height)
 			end
 		end
 	end
 
-	for width = 2, math.min(mod_settings.max_width, mod_settings.max_area) do
+	for width = 2, mod_settings.max_length do
 		if enable_chest and segments_data.wide_segments then
 			if MergingChests.is_size_allowed(width, 1, entity_data.chest_name) then
 				data:extend({ create_wide_chest_entity(entity_data, segments_data.wide_segments, width) })
-				max_area = math.max(max_area, width)
+				max_item_count = math.max(max_item_count, width)
 			end
 		end
 
-		for height = 2, math.min(mod_settings.max_height, mod_settings.max_area) do
+		for height = 2, mod_settings.max_length do
 			if MergingChests.is_size_allowed(width, height, entity_data.chest_name) then
 				if enable_trashdump and width > mod_settings.warehouse_threshold and height > mod_settings.warehouse_threshold and segments_data.trashdump_segments then
 					data:extend({ create_trashdump_entity(entity_data, segments_data.trashdump_segments, width, height) })
-					max_area = math.max(max_area, width * height)
+					max_item_count = math.max(max_item_count, width * height)
 				elseif enable_warehouse and segments_data.warehouse_segments then
 					data:extend({ create_warehouse_entity(entity_data, segments_data.warehouse_segments, width, height) })
-					max_area = math.max(max_area, width * height)
+					max_item_count = math.max(max_item_count, width * height)
 				end
 			end
 		end
@@ -315,7 +315,7 @@ function MergingChests.create_mergeable_chest(entity_data, segments_data)
 
 		table.insert(data.raw['selection-tool'][MergingChests.merge_selection_tool_name].select.entity_filters, entity_data.chest_name)
 		if data.raw.item[entity_data.chest_name] then
-			data.raw.item[entity_data.chest_name].stack_size = math.max(data.raw.item[entity_data.chest_name].stack_size, max_area)
+			data.raw.item[entity_data.chest_name].stack_size = math.max(data.raw.item[entity_data.chest_name].stack_size, max_item_count)
 		end
 	end
 end

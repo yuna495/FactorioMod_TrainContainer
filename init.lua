@@ -47,11 +47,7 @@ MergingChests.merge_shortcut_name = MergingChests.prefix_with_modname('merge-che
 
 MergingChests.setting_names = {
 	mergeable_chest = MergingChests.prefix_with_modname('mergeable-chest'),
-	max_width = MergingChests.prefix_with_modname('max-chest-width'),
-	max_height = MergingChests.prefix_with_modname('max-chest-height'),
-	max_area = MergingChests.prefix_with_modname('max-chest-area'),
-	whitelist = MergingChests.prefix_with_modname('whitelist-chest-sizes'),
-	mirror_whitelist = MergingChests.prefix_with_modname('mirror-whitelists'),
+	max_length = MergingChests.prefix_with_modname('max-chest-length'),
 	inventory_size_multiplier = MergingChests.prefix_with_modname('inventory-size-multiplier'),
 	inventory_size_limit = MergingChests.prefix_with_modname('inventory-size-limit'),
 	inventory_type = MergingChests.prefix_with_modname('inventory-type'),
@@ -68,11 +64,6 @@ MergingChests.chest_names = {
 	steel = 'steel-chest',
 	infinity = MergingChests.prefix_with_modname('infinity-chest')
 }
-
-local WHITELIST_SIZE_ANY = 'any'
-
---- @alias size_whitelist -- two dimentional array[width][height] = enabled?
---- | { [number | `WHITELIST_SIZE_ANY`]: { [number | `WHITELIST_SIZE_ANY`]: boolean } }
 
 --- @alias circuit_connector_position
 --- | 'right-top'
@@ -93,45 +84,10 @@ local WHITELIST_SIZE_ANY = 'any'
 
 --- @alias mod_settings
 --- | { chest_name: string | nil }
---- | { max_width: number, max_height: number, max_area: number, size_whitelist: size_whitelist }
+--- | { max_length: number }
 --- | { inventory_size_multiplier: number, inventory_size_limit: number, inventory_type: inventory_type }
 --- | { warehouse_threshold: number, sprite_variation_chance: number }
 --- | { circuit_connector_position: circuit_connector_position }
-
---- @param value string
---- @param mirror boolean
---- @return size_whitelist
-local function parse_whitelist_setting(value, mirror)
-	local size_whitelist = { }
-	local has_item = false
-	for width, height in string.gmatch(value, '([%dN]+)[×xX$*]([%dN]+)') do
-		if (tonumber(width) or width == 'N') and (tonumber(height) or height == 'N') then
-			width = tonumber(width) or WHITELIST_SIZE_ANY
-			height = tonumber(height) or WHITELIST_SIZE_ANY
-			if not size_whitelist[width] then
-				size_whitelist[width] = { }
-				has_item = true
-			end
-			if mirror and not size_whitelist[height] then
-				size_whitelist[height] = { }
-				has_item = true
-			end
-
-			if not size_whitelist[width][WHITELIST_SIZE_ANY] then
-				size_whitelist[width][height] = true
-			end
-			if mirror and not size_whitelist[height][WHITELIST_SIZE_ANY] then
-				size_whitelist[height][width] = true
-			end
-		end
-	end
-
-	if not has_item then
-		size_whitelist = { [WHITELIST_SIZE_ANY] = { [WHITELIST_SIZE_ANY] = true } }
-	end
-
-	return size_whitelist
-end
 
 --- @param chest_name string | nil
 --- @return mod_settings
@@ -146,22 +102,17 @@ local function parse_settings(chest_name)
 	local mod_settings = {
 		chest_name = chest_name,
 		mergeable_chest = MergingChests.is_mod_active(MergingChests.all_types_mod_name) and 'all' or get_startup_setting_value(MergingChests.setting_names.mergeable_chest),
-		max_width = get_startup_setting_value(MergingChests.setting_names.max_width),
-		max_height = get_startup_setting_value(MergingChests.setting_names.max_height),
-		max_area = get_startup_setting_value(MergingChests.setting_names.max_area),
+		max_length = get_startup_setting_value(MergingChests.setting_names.max_length),
 		inventory_size_multiplier = get_startup_setting_value(MergingChests.setting_names.inventory_size_multiplier),
 		inventory_size_limit = get_startup_setting_value(MergingChests.setting_names.inventory_size_limit),
 		inventory_type = get_startup_setting_value(MergingChests.setting_names.inventory_type),
-		size_whitelist = parse_whitelist_setting(get_startup_setting_value(MergingChests.setting_names.whitelist), get_startup_setting_value(MergingChests.setting_names.mirror_whitelist)),
 		sprite_variation_chance = get_startup_setting_value(MergingChests.setting_names.sprite_decal_chance),
 		warehouse_threshold = get_startup_setting_value(MergingChests.setting_names.warehouse_threshold),
 		circuit_connector_position = get_startup_setting_value(MergingChests.setting_names.circuit_connector_position),
 	}
 
 	if not MergingChests.is_mod_active(MergingChests.unlimited_mod_name) then
-		mod_settings.max_width = math.min(mod_settings.max_width, 42)
-		mod_settings.max_height = math.min(mod_settings.max_height, 42)
-		mod_settings.max_area = math.min(mod_settings.max_area, 1600)
+		mod_settings.max_length = math.min(mod_settings.max_length, 42)
 	end
 	return mod_settings
 end
@@ -186,22 +137,17 @@ function MergingChests.get_mod_settings(chest_name)
 	return cached_mod_settings[chest_name_or_default]
 end
 
---- Checks if width and height is allowed both by size limits and whitelist mod settings
+--- Checks if width and height is allowed for line-shaped train containers.
 --- @param width integer
 --- @param height integer
 --- @param chest_name string | nil
 function MergingChests.is_size_allowed(width, height, chest_name)
     local mod_settings = MergingChests.get_mod_settings(chest_name)
 
-	local size_whitelist = mod_settings.size_whitelist
 	return (
-		width <= mod_settings.max_width and
-		height <= mod_settings.max_height and
-		width * height <= mod_settings.max_area and
-		(
-			size_whitelist[width] and (size_whitelist[width][height] or size_whitelist[width][WHITELIST_SIZE_ANY]) or
-			size_whitelist[WHITELIST_SIZE_ANY] and (size_whitelist[WHITELIST_SIZE_ANY][height] or size_whitelist[WHITELIST_SIZE_ANY][WHITELIST_SIZE_ANY])
-		)
+		width <= mod_settings.max_length and
+		height <= mod_settings.max_length and
+		(width == 1 or height == 1)
 	)
 end
 
