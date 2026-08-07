@@ -1,4 +1,3 @@
-require('scripts.prng')
 require('scripts.math_utils')
 
 --- @alias position { x?: number, y?: number }
@@ -55,7 +54,6 @@ local function postprocess_sprite(sprite)
 end
 
 -- top left corner of sprite will be placed onto center of entity (plus shifts)
--- random decals may be used
 -- shiftX, shiftY = local segment tile shift
 -- shifts in segment(s) are pixel shifts
 --- @param segments sprite_definition
@@ -69,13 +67,8 @@ local function create_sprite_tile(segments, segment, shift_x, shift_y, width, he
 	local main_segment = segment
 
 	if segment[1] ~= nil then
-		if segment[2] ~= nil and prng.range(1, 100) < MergingChests.get_mod_settings().sprite_variation_chance then
-			main_segment = segment[1]
-			segment = segment[prng.range(2, table_size(segment))]
-		else
-			main_segment = segment
-			segment = segment[1]
-		end
+		main_segment = segment
+		segment = segment[1]
 	end
 
 	width = segment.width or width

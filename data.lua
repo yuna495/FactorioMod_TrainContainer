@@ -88,7 +88,6 @@ MergingChests.create_mergeable_chest(
 		chest_name = MergingChests.chest_names.infinity,
 		base_entity_name = 'infinity-chest',
 		prototype_type = 'infinity-container',
-		force_enable_chest = true,
 		skip_selection_filter = true,
 		hidden = true,
 		placeable_by = function()

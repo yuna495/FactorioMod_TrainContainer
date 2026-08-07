@@ -153,7 +153,7 @@ local function create_entity(entity_data, loc_name, subgroup, width, height, seg
 			close_sound = base_chest.close_sound,
 			max_health = base_chest.max_health * math.min(width * height, 10),
 			inventory_size = inventory_size,
-			inventory_type = prototype_type ~= 'infinity-container' and MergingChests.get_mod_settings(entity_data.chest_name).inventory_type or nil,
+			inventory_type = prototype_type ~= 'infinity-container' and 'normal' or nil,
 			flags = { 'placeable-player', 'player-creation' },
 			minable = minable,
 			placeable_by = placeable_by,
@@ -169,9 +169,6 @@ local function create_entity(entity_data, loc_name, subgroup, width, height, seg
 			hidden_in_factoriopedia = true,
 			surface_conditions = base_chest.surface_conditions
 		},
-		settings.startup[MergingChests.setting_names.enable_upgrading_merged_chests].value and {
-			fast_replaceable_group = 'merged-container',
-		} or {},
 		entity_data.override_prototype_properties or {}
 	})
 end
@@ -240,45 +237,15 @@ local function create_trashdump_entity(entity_data, segment_data, width, height)
 	)
 end
 
---- @type { [setting_allowed_value]: boolean[] }
-local setting_value_to_enabled_flags = {
-	['none'] = { false, false, false },
-	['chest'] = { true, false, false },
-	['warehouse'] = { false, true, false },
-	['trashdump'] = { false, false, true },
-	['chest-warehouse'] = { true, true, false },
-	['chest-trashdump'] = { true, false, true },
-	['warehouse-trashdump'] = { false, true, true },
-	['chest-warehouse-trashdump'] = { true, true, true }
-}
-
 --- Creates merged chest prototypes
 ---
---- Reads settings made during settings stage with same `chest_name`.
 --- @param entity_data entity_data
 --- @param segments_data segments_data
 function MergingChests.create_mergeable_chest(entity_data, segments_data)
-    local setting = settings.startup[MergingChests.chest_specific_setting_name(MergingChests.setting_names.mergeable_chest, entity_data.chest_name)]
-    local enable_chest, enable_warehouse, enable_trashdump = table.unpack(
-        setting_value_to_enabled_flags[setting and setting.value or 'none']
-    )
-
-	if entity_data.force_enable_chest then
-		enable_chest = true
-		enable_warehouse = false
-		enable_trashdump = false
-	end
-
-	if setting and MergingChests.is_mod_active(MergingChests.all_types_mod_name) then
-		enable_chest = true
-		enable_warehouse = true
-		enable_trashdump = true
-	end
-
 	local mod_settings = MergingChests.get_mod_settings(entity_data.chest_name)
 	local max_item_count = 0
 
-	if enable_chest and segments_data.high_segments then
+	if segments_data.high_segments then
 		for height = 2, mod_settings.max_length do
 			if MergingChests.is_size_allowed(1, height, entity_data.chest_name) then
 				data:extend({ create_high_chest_entity(entity_data, segments_data.high_segments, height) })
@@ -288,78 +255,20 @@ function MergingChests.create_mergeable_chest(entity_data, segments_data)
 	end
 
 	for width = 2, mod_settings.max_length do
-		if enable_chest and segments_data.wide_segments then
+		if segments_data.wide_segments then
 			if MergingChests.is_size_allowed(width, 1, entity_data.chest_name) then
 				data:extend({ create_wide_chest_entity(entity_data, segments_data.wide_segments, width) })
 				max_item_count = math.max(max_item_count, width)
 			end
 		end
-
-		for height = 2, mod_settings.max_length do
-			if MergingChests.is_size_allowed(width, height, entity_data.chest_name) then
-				if enable_trashdump and width > mod_settings.warehouse_threshold and height > mod_settings.warehouse_threshold and segments_data.trashdump_segments then
-					data:extend({ create_trashdump_entity(entity_data, segments_data.trashdump_segments, width, height) })
-					max_item_count = math.max(max_item_count, width * height)
-				elseif enable_warehouse and segments_data.warehouse_segments then
-					data:extend({ create_warehouse_entity(entity_data, segments_data.warehouse_segments, width, height) })
-					max_item_count = math.max(max_item_count, width * height)
-				end
-			end
-		end
 	end
 
-	if enable_chest or enable_warehouse or enable_trashdump then
-		if entity_data.skip_selection_filter then
-			return
-		end
-
-		table.insert(data.raw['selection-tool'][MergingChests.merge_selection_tool_name].select.entity_filters, entity_data.chest_name)
-		if data.raw.item[entity_data.chest_name] then
-			data.raw.item[entity_data.chest_name].stack_size = math.max(data.raw.item[entity_data.chest_name].stack_size, max_item_count)
-		end
+	if entity_data.skip_selection_filter then
+		return
 	end
-end
 
---- Sets next_upgrade of chests of type `type` merged from `chest_name`
---- @param type `logistic-container` | `container`
---- @param chest_name string
---- @param next_upgrade string
-function MergingChests.set_next_upgrade_of(type, chest_name, next_upgrade)
-	if settings.startup[MergingChests.setting_names.enable_upgrading_merged_chests].value then
-		for _, prototype in pairs(data.raw[type]) do
-			local name, width, height = MergingChests.get_merged_chest_info(prototype.name)
-			if name == chest_name and width and height then
-				local merged_upgrade_name = MergingChests.get_merged_chest_name(next_upgrade, width, height)
-				if data.raw[type][merged_upgrade_name] then
-					prototype.next_upgrade = merged_upgrade_name
-				end
-			end
-		end
-	end
-end
-
---- Disables next_upgrade of chests of type `type` merged from `chest_name`
---- @param type `logistic-container` | `container`
---- @param chest_name string
-function MergingChests.disable_next_upgrade_of(type, chest_name)
-	for _, prototype in pairs(data.raw[type]) do
-		local name, _ = MergingChests.get_merged_chest_info(prototype.name)
-		if name == chest_name then
-			prototype.next_upgrade = nil
-		end
-	end
-end
-
---- Disables next_upgrade of chests which of type `type` which are upgraded to `chest_name`
---- @param type `logistic-container` | `container`
---- @param chest_name string
-function MergingChests.disable_next_upgrade_to(type, chest_name)
-	for _, prototype in pairs(data.raw[type]) do
-		if prototype.next_upgrade then
-			local name, _ = MergingChests.get_merged_chest_info(prototype.next_upgrade)
-			if name == chest_name then
-				prototype.next_upgrade = nil
-			end
-		end
+	table.insert(data.raw['selection-tool'][MergingChests.merge_selection_tool_name].select.entity_filters, entity_data.chest_name)
+	if data.raw.item[entity_data.chest_name] then
+		data.raw.item[entity_data.chest_name].stack_size = math.max(data.raw.item[entity_data.chest_name].stack_size, max_item_count)
 	end
 end

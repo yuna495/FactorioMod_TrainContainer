@@ -6,10 +6,7 @@ MergingChests = MergingChests or { }
 MergingChests.mod_name = 'TrainContainer'
 MergingChests.prototype_prefix = 'train-container-'
 MergingChests.prototype_pattern_prefix = 'train%-container%-'
-MergingChests.all_types_mod_name = 'TrainContainerAllTypes'
 MergingChests.unlimited_mod_name = 'TrainContainerUnlimited'
-MergingChests.override_size_settings_mod_name = 'TrainContainerOverrideSizeSettings'
-MergingChests.override_inventory_settings_mod_name = 'TrainContainerOverrideInventorySettings'
 
 function MergingChests.is_mod_active(mod)
 	return not not (mods or script.active_mods)[mod]
@@ -46,16 +43,11 @@ MergingChests.merge_selection_tool_name = MergingChests.prefix_with_modname('mer
 MergingChests.merge_shortcut_name = MergingChests.prefix_with_modname('merge-chest-selector')
 
 MergingChests.setting_names = {
-	mergeable_chest = MergingChests.prefix_with_modname('mergeable-chest'),
 	max_length = MergingChests.prefix_with_modname('max-chest-length'),
-	inventory_size_multiplier = MergingChests.prefix_with_modname('inventory-size-multiplier'),
 	inventory_size_limit = MergingChests.prefix_with_modname('inventory-size-limit'),
-	inventory_type = MergingChests.prefix_with_modname('inventory-type'),
-	sprite_decal_chance = MergingChests.prefix_with_modname('sprite-decal-chance'),
 	warehouse_threshold = MergingChests.prefix_with_modname('warehouse-threshold'),
 	circuit_connector_position = MergingChests.prefix_with_modname('circuit-connector-position'),
 	allow_delete_items = MergingChests.prefix_with_modname('allow-delete-items'),
-	enable_upgrading_merged_chests = MergingChests.prefix_with_modname('enable-chest-upgrade'),
 }
 
 MergingChests.chest_names = {
@@ -77,16 +69,11 @@ MergingChests.chest_names = {
 --- | 'bottom-middle'
 --- | 'bottom-left'
 
---- @alias inventory_type
---- | 'normal'
---- | 'with_bar'
---- | 'with_filters_and_bar'
-
 --- @alias mod_settings
 --- | { chest_name: string | nil }
 --- | { max_length: number }
---- | { inventory_size_multiplier: number, inventory_size_limit: number, inventory_type: inventory_type }
---- | { warehouse_threshold: number, sprite_variation_chance: number }
+--- | { inventory_size_limit: number }
+--- | { warehouse_threshold: number }
 --- | { circuit_connector_position: circuit_connector_position }
 
 --- @param chest_name string | nil
@@ -101,12 +88,8 @@ local function parse_settings(chest_name)
 	--- @type mod_settings
 	local mod_settings = {
 		chest_name = chest_name,
-		mergeable_chest = MergingChests.is_mod_active(MergingChests.all_types_mod_name) and 'all' or get_startup_setting_value(MergingChests.setting_names.mergeable_chest),
 		max_length = get_startup_setting_value(MergingChests.setting_names.max_length),
-		inventory_size_multiplier = get_startup_setting_value(MergingChests.setting_names.inventory_size_multiplier),
 		inventory_size_limit = get_startup_setting_value(MergingChests.setting_names.inventory_size_limit),
-		inventory_type = get_startup_setting_value(MergingChests.setting_names.inventory_type),
-		sprite_variation_chance = get_startup_setting_value(MergingChests.setting_names.sprite_decal_chance),
 		warehouse_threshold = get_startup_setting_value(MergingChests.setting_names.warehouse_threshold),
 		circuit_connector_position = get_startup_setting_value(MergingChests.setting_names.circuit_connector_position),
 	}
@@ -251,9 +234,9 @@ end
 --- @param chest_name string | nil
 --- @return integer
 function MergingChests.get_inventory_size(default_inventory_size, tiles, chest_name)
-    local mod_settings = MergingChests.get_mod_settings(chest_name)
+	local mod_settings = MergingChests.get_mod_settings(chest_name)
 	return util.clamp(
-		math.floor(default_inventory_size * tiles * mod_settings.inventory_size_multiplier),
+		math.floor(default_inventory_size * tiles),
 		1,
 		math.min(mod_settings.inventory_size_limit, 65536)
 	)
