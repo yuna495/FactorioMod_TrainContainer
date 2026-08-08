@@ -49,14 +49,14 @@ local function get_circuit_connector(chest_name, width, height)
 		x = width / 2 - 0.5
 	end
 
-	return circuit_connector_definitions.create_single(
+	return circuit_connector_definitions.create_vector(
 		universal_connector_template,
-		{
+		{{
 			variation = variation,
 			main_offset = { x, y },
 			shadow_offset = { x + 0.1, y + 0.1 },
 			show_shadow = false
-		}
+		}}
 	)
 end
 

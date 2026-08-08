@@ -4,8 +4,8 @@
   "title": "Train Container",
   "author": "yuna495",
   "description": "Adds Merging Chests based one-tile-wide train containers and editor-only infinity variants.",
-  "factorio_version": "2.0",
+  "factorio_version": "2.1",
   "dependencies": [
-    "base >= 2.0.77"
+    "base >= 2.1"
   ]
 }

@@ -14,13 +14,15 @@ data:extend({
 		select = {
 			border_color = {0, 0, 1},
 			cursor_box_type = 'entity',
-			mode = 'deconstruct',
+			mode = { 'deconstruct', 'any-entity' },
+			ignore_cannot_select_tiles = true,
 			entity_filters = {}
 		},
 		alt_select = {
 			border_color = {1, 0, 0},
 			cursor_box_type = 'entity',
-			mode = 'deconstruct',
+			mode = { 'deconstruct', 'any-entity' },
+			ignore_cannot_select_tiles = true,
 			entity_filters = {}
 		}
 	}
