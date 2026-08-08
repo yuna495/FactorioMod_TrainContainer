@@ -6,11 +6,6 @@ MergingChests = MergingChests or { }
 MergingChests.mod_name = 'TrainContainer'
 MergingChests.prototype_prefix = 'train-container-'
 MergingChests.prototype_pattern_prefix = 'train%-container%-'
-MergingChests.unlimited_mod_name = 'TrainContainerUnlimited'
-
-function MergingChests.is_mod_active(mod)
-	return not not (mods or script.active_mods)[mod]
-end
 
 --- @param value string
 function MergingChests.prefix_with_modname(value)
@@ -94,9 +89,6 @@ local function parse_settings(chest_name)
 		circuit_connector_position = get_startup_setting_value(MergingChests.setting_names.circuit_connector_position),
 	}
 
-	if not MergingChests.is_mod_active(MergingChests.unlimited_mod_name) then
-		mod_settings.max_length = math.min(mod_settings.max_length, 42)
-	end
 	return mod_settings
 end
 
@@ -238,7 +230,7 @@ function MergingChests.get_inventory_size(default_inventory_size, tiles, chest_n
 	return util.clamp(
 		math.floor(default_inventory_size * tiles),
 		1,
-		math.min(mod_settings.inventory_size_limit, 65536)
+		math.min(mod_settings.inventory_size_limit, 3984)
 	)
 end
 

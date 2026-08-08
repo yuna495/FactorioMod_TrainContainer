@@ -7,6 +7,7 @@ data:extend(
 		type = 'int-setting',
 		setting_type = 'startup',
 		minimum_value = 2,
+		maximum_value = 83,
 		default_value = 27,
 		order = '01'
 	},
@@ -15,8 +16,8 @@ data:extend(
 		type = 'int-setting',
 		setting_type = 'startup',
 		minimum_value = 1,
-		maximum_value = 65535,
-		default_value = 65535,
+		maximum_value = 3984,
+		default_value = 3984,
 		order = '02'
 	},
 	{
