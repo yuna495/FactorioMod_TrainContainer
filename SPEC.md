@@ -49,7 +49,7 @@ Circuit wire restoration is handled independently for red and green wires.
 
 When splitting one TrainContainer into steel chests, every external red or green circuit connection on the TrainContainer is recreated from every restored steel chest to that same external connector. Script-created restoration may bypass normal reach checks so that existing long TrainContainer connections are not lost by distance limits after expansion.
 
-When merging steel chests into one TrainContainer, a wire color is restored only if every selected source chest had at least one external connection of that color. External connectors are deduplicated before reconnecting the TrainContainer.
+When merging steel chests into one TrainContainer, a wire color is restored only if every selected source chest had at least one wire connection of that color. The connection may be to another selected source chest or to an external entity. Only external connectors are deduplicated and reconnected to the TrainContainer; internal wires between selected source chests are not recreated.
 
 ## Blueprint And Rotation
 

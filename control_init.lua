@@ -170,8 +170,8 @@ function MergingChests.reconnect_circuits(from_entities, to_entities, require_al
 		source_has_color[from_entity] = { }
 		for _, connector in pairs(from_entity.get_wire_connectors(false)) do
 			for _, connection in ipairs(connector.connections) do
+				source_has_color[from_entity][connector.wire_connector_id] = true
 				if not from_entities_set[connection.target.owner] then
-					source_has_color[from_entity][connector.wire_connector_id] = true
 					outside_connectors[connector.wire_connector_id] = outside_connectors[connector.wire_connector_id] or {}
 					local owner = connection.target.owner
 					local owner_key = owner.unit_number or (owner.name..'/'..owner.position.x..'/'..owner.position.y)
