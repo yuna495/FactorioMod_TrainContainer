@@ -44,47 +44,113 @@ local function create_split_chest(merged_chest, split_chest_name, width, height,
 	return split_chests
 end
 
+--- @param entities LuaEntity[]
+local function destroy_entities(entities)
+	for _, entity in ipairs(entities) do
+		if entity and entity.valid then
+			entity.destroy({ raise_destroy = true })
+		end
+	end
+end
+
+--- @param split_chests LuaEntity[]
+--- @return boolean
+local function all_split_chests_created(split_chests)
+	for _, split_chest in ipairs(split_chests) do
+		if split_chest == nil or not split_chest.valid then
+			return false
+		end
+	end
+	return true
+end
+
+--- @param merged_chest LuaEntity
+--- @param player LuaPlayer
+--- @param player_index integer
+--- @return boolean
+function MergingChests.try_split_merged_chest(merged_chest, player, player_index)
+	local is_ghost = merged_chest.name == 'entity-ghost'
+	local merged_chest_name = is_ghost and merged_chest.ghost_name or merged_chest.name
+	local split_chest_name, width, height = MergingChests.get_merged_chest_info(merged_chest_name)
+	if split_chest_name == nil or width == nil or height == nil then
+		return false
+	end
+
+	if MergingChests.is_infinity_chest_name(merged_chest_name) then
+		player.create_local_flying_text({
+			text = { 'flying-text.'..MergingChests.prefix_with_modname('infinity-split-disabled') },
+			position = merged_chest.position
+		})
+		return false
+	end
+
+	local required_chests = width * height
+	local quality = merged_chest.quality
+	local has_required_chests = is_ghost or MergingChests.get_player_item_count(player, split_chest_name, quality) >= required_chests
+	local source_inventory = merged_chest.get_inventory(defines.inventory.chest)
+	local source_has_items = source_inventory and not source_inventory.is_empty()
+
+	if not has_required_chests and source_has_items then
+		player.create_local_flying_text({
+			text = { 'flying-text.'..MergingChests.prefix_with_modname('items-would-be-deleted-split-missing-chests') },
+			position = merged_chest.position
+		})
+		return false
+	end
+
+	if not is_ghost and has_required_chests and not MergingChests.remove_player_items(player, split_chest_name, required_chests, quality) then
+		return false
+	end
+
+	if not is_ghost and has_required_chests and not MergingChests.can_move_inventories({ merged_chest }, split_chest_name, required_chests) then
+		MergingChests.refund_player_items(player, split_chest_name, required_chests, quality)
+		player.create_local_flying_text({
+			text = { 'flying-text.'..MergingChests.prefix_with_modname('items-would-be-deleted-split') },
+			position = merged_chest.position
+		})
+		return false
+	end
+
+	local total_bar = MergingChests.get_total_bar({ merged_chest }, is_ghost)
+	local split_chests = create_split_chest(merged_chest, split_chest_name, width, height, player, is_ghost or not has_required_chests, total_bar)
+	if not all_split_chests_created(split_chests) then
+		destroy_entities(split_chests)
+		if not is_ghost and has_required_chests then
+			MergingChests.refund_player_items(player, split_chest_name, required_chests, quality)
+		end
+		return false
+	end
+
+	if not is_ghost and has_required_chests then
+		for _, split_chest in ipairs(split_chests) do
+			split_chest.last_user = player
+		end
+		if not MergingChests.move_inventories({ merged_chest }, split_chests) then
+			destroy_entities(split_chests)
+			MergingChests.refund_player_items(player, split_chest_name, required_chests, quality)
+			return false
+		end
+	end
+	MergingChests.reconnect_circuits({ merged_chest }, split_chests, false, true)
+
+	raise_on_chest_split({
+		player_index = player_index,
+		surface = merged_chest.surface,
+		merged_chest = merged_chest,
+		split_chests = split_chests,
+		is_ghost = is_ghost or not has_required_chests,
+	})
+	merged_chest.destroy({ raise_destroy = true })
+
+	return true
+end
+
 local function on_player_alt_selected_area(event)
 	if event.item and event.item == MergingChests.merge_selection_tool_name then
 		local player = game.players[event.player_index]
 
-		for _, merged_chest in ipairs(event.entities) do
-			local is_ghost = merged_chest.name == 'entity-ghost'
-			local merged_chest_name = is_ghost and merged_chest.ghost_name or merged_chest.name
-			local split_chest_name, width, height = MergingChests.get_merged_chest_info(merged_chest_name)
-			if split_chest_name ~= nil and width ~= nil and height ~= nil then
-				if MergingChests.is_infinity_chest_name(merged_chest_name) then
-					player.create_local_flying_text({
-						text = { 'flying-text.'..MergingChests.prefix_with_modname('infinity-split-disabled') },
-						position = merged_chest.position
-					})
-				elseif is_ghost or player.mod_settings[MergingChests.setting_names.allow_delete_items].value or MergingChests.can_move_inventories({ merged_chest }, split_chest_name, width * height) then
-					local total_bar = MergingChests.get_total_bar({ merged_chest }, is_ghost)
-					local split_chests = create_split_chest(merged_chest, split_chest_name, width, height, player, is_ghost, total_bar)
-
-					if not is_ghost then
-						for _, split_chest in ipairs(split_chests) do
-							split_chest.last_user = player
-						end
-						MergingChests.move_inventories({ merged_chest }, split_chests)
-					end
-					MergingChests.reconnect_circuits({ merged_chest }, split_chests)
-
-					raise_on_chest_split({
-						player_index = event.player_index,
-						surface = event.surface,
-						merged_chest = merged_chest,
-						split_chests = split_chests,
-						is_ghost = is_ghost,
-					})
-					merged_chest.destroy({ raise_destroy = true })
-				else
-					player.create_local_flying_text({
-						text = { 'flying-text.'..MergingChests.prefix_with_modname('items-would-be-deleted-split') },
-						position = merged_chest.position
-					})
-				end
-			end
+		if #event.entities == 1 then
+			MergingChests.try_split_merged_chest(event.entities[1], player, event.player_index)
 		end
 	end
 end

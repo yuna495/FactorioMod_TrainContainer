@@ -194,16 +194,62 @@ local function create_merged_chest(player, chest_name, position, is_ghost, bar, 
 	return player.surface.create_entity(entity_data)
 end
 
+--- @param entity LuaEntity
+--- @return boolean
+local function is_merged_chest(entity)
+	local entity_name = entity.name == 'entity-ghost' and entity.ghost_name or entity.name
+	return MergingChests.get_merged_chest_info(entity_name) ~= nil
+end
+
+--- @param entities LuaEntity[]
+--- @return LuaEntity[] | nil
+local function get_single_merge_selection(entities)
+	if #entities == 0 then
+		return nil
+	end
+
+	local has_merged_chest = false
+	local has_unmerged_chest = false
+	for _, entity in ipairs(entities) do
+		if is_merged_chest(entity) then
+			has_merged_chest = true
+		else
+			has_unmerged_chest = true
+		end
+	end
+
+	if has_merged_chest and has_unmerged_chest then
+		return nil
+	end
+
+	return entities
+end
+
 local function on_player_selected_area(event)
 	if event.item and event.item == MergingChests.merge_selection_tool_name then
 		local player = game.players[event.player_index]
+		local selected_entities = get_single_merge_selection(event.entities)
+		if selected_entities == nil then
+			return
+		end
 
-		local entity_groups = group_by_name(event.entities)
+		if #selected_entities == 1 and is_merged_chest(selected_entities[1]) then
+			MergingChests.try_split_merged_chest(selected_entities[1], player, event.player_index)
+			return
+		end
+
+		for _, entity in ipairs(selected_entities) do
+			if is_merged_chest(entity) then
+				return
+			end
+		end
+
+		local entity_groups = group_by_name(selected_entities)
 		for entity_name, group in pairs(entity_groups) do
 			for is_ghost, entities in pairs(group) do
 				local target_entity_name = MergingChests.get_merge_target_chest_name(entity_name)
 				for _, chest_group_to_merge in ipairs(group_chests(entities, target_entity_name, is_ghost)) do
-					if is_ghost or player.mod_settings[MergingChests.setting_names.allow_delete_items].value or MergingChests.can_move_inventories(chest_group_to_merge.entities, chest_group_to_merge.merged_chest_name, bounding_box.area(chest_group_to_merge.bounding_box)) then
+					if is_ghost or MergingChests.can_move_inventories(chest_group_to_merge.entities, chest_group_to_merge.merged_chest_name, bounding_box.area(chest_group_to_merge.bounding_box)) then
 						local total_bar = MergingChests.get_total_bar(chest_group_to_merge.entities, is_ghost)
 						local quality = MergingChests.get_minimum_quality(chest_group_to_merge.entities)
 
@@ -216,22 +262,31 @@ local function on_player_selected_area(event)
 							quality
 						)
 						if merged_chest then
+							local inventory_moved = true
 							if not is_ghost then
 								merged_chest.last_user = player
-								MergingChests.move_inventories(chest_group_to_merge.entities, { merged_chest })
+								inventory_moved = MergingChests.move_inventories(chest_group_to_merge.entities, { merged_chest })
 							end
-							MergingChests.reconnect_circuits(chest_group_to_merge.entities, { merged_chest })
+							if inventory_moved then
+								MergingChests.reconnect_circuits(chest_group_to_merge.entities, { merged_chest }, true, false)
 
-							raise_on_chest_merged({
-								player_index = event.player_index,
-								surface = event.surface,
-								merged_chest = merged_chest,
-								split_chests = chest_group_to_merge.entities,
-								is_ghost = is_ghost,
-							})
+								raise_on_chest_merged({
+									player_index = event.player_index,
+									surface = event.surface,
+									merged_chest = merged_chest,
+									split_chests = chest_group_to_merge.entities,
+									is_ghost = is_ghost,
+								})
 
-							for _, entity in ipairs(chest_group_to_merge.entities) do
-								entity.destroy({ raise_destroy = true })
+								for _, entity in ipairs(chest_group_to_merge.entities) do
+									entity.destroy({ raise_destroy = true })
+								end
+							else
+								merged_chest.destroy({ raise_destroy = true })
+								player.create_local_flying_text({
+									text = { 'flying-text.'..MergingChests.prefix_with_modname('items-would-be-deleted-merge') },
+									position = chest_group_to_merge.entities[1].position
+								})
 							end
 						end
 					else

@@ -32,7 +32,7 @@ end
 
 --- @param player_index integer
 local function get_blueprint_in_cursor(player_index)
-	player = game.players[player_index]
+	local player = game.players[player_index]
 	local cursor = player.cursor_stack
 	if player.is_cursor_blueprint() and cursor and cursor.valid_for_read then
 		if cursor.is_blueprint_book and cursor.active_index then

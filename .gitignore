@@ -11,6 +11,7 @@
 .factorio-*
 .probe-*
 .nameprobe-*
+AGENTS.md
 
 # Local Factorio profile output when using an isolated write-data directory
 saves/

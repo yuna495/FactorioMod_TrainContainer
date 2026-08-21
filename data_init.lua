@@ -122,6 +122,7 @@ local function create_entity(entity_data, loc_name, subgroup, width, height, seg
 	local merged_chest_name = MergingChests.get_merged_chest_name(entity_data.chest_name, width, height)
 
 	table.insert(data.raw['selection-tool'][MergingChests.merge_selection_tool_name].alt_select.entity_filters, merged_chest_name)
+	table.insert(data.raw['selection-tool'][MergingChests.merge_selection_tool_name].select.entity_filters, merged_chest_name)
 
 	local minable = entity_data.minable
 	if type(minable) == 'function' then
