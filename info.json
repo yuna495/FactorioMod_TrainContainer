@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "title": "Train Container",
   "author": "yuna495",
-  "description": "Adds Merging Chests based one-tile-wide train containers and editor-only infinity variants.",
+  "description": "Merge straight rows of chests into large train-length containers with quality, circuit network, and blueprint support.",
   "factorio_version": "2.0",
   "dependencies": [
     "base >= 2.0.0"

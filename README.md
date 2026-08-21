@@ -1,111 +1,335 @@
 # Train Container
 
-First-stage implementation of one-tile-wide train-length containers for Factorio 2.0.77.
+Train Container is a Factorio 2.0 mod that lets you merge straight rows or columns of chests into a single large container.
+
+It is designed mainly for train stations and other builds where many adjacent chests would otherwise be required.
+
+The mod is event-driven and does not use `on_tick` processing for normal operation.
 
 ## Factorio Version
 
-This implementation targets `base >= 2.0.77`.
+Tested with:
 
-A local check with Factorio 2.0.77 showed that `ContainerPrototype.direction_count` is not consumed there and `container.picture` still expects a single `Sprite`. Because of that, true vertical/horizontal collision cannot be implemented as one rotatable `container` prototype in 2.0.77.
+* Factorio 2.0.77
 
-## Scope
+`info.json` currently targets Factorio 2.0.
 
-This stage adds four sizes of ordinary `container`, with separate east-west and north-south prototypes for each size:
+## Features
 
-- `train-container-1`: 6 x 1 tiles, 96 slots
-- `train-container-1-vertical`: 1 x 6 tiles, 96 slots
-- `train-container-2`: 13 x 1 tiles, 192 slots
-- `train-container-2-vertical`: 1 x 13 tiles, 192 slots
-- `train-container-3`: 20 x 1 tiles, 288 slots
-- `train-container-3-vertical`: 1 x 20 tiles, 288 slots
-- `train-container-4`: 27 x 1 tiles, 384 slots
-- `train-container-4-vertical`: 1 x 27 tiles, 384 slots
+* Merge contiguous steel chests into one large Train Container
+* Supports both horizontal and vertical layouts
+* Split a Train Container back into the original chest row
+* Preserves item contents during merge and split
+* Prevents transformations when items cannot be moved safely
+* Supports Factorio quality
+* Preserves supported circuit-network connections
+* Blueprint and copy/paste support
+* Blueprint rotation works by recording normal chests instead of Train Container entities
+* Editor-only infinity-container support
+* No continuous runtime polling
 
-Recipes are enabled from the start and use one `steel-chest` per occupied tile. The east-west and north-south variants are separate craftable items.
+## Basic Usage
 
-This stage intentionally does not implement train detection, loading, unloading, custom circuit behavior, GUI, LTN, Cybersyn, inventory sharing, or snapping. The containers do support the same basic circuit connection as vanilla chests, so their inventory contents can be read by the circuit network.
+Use the Train Container merge tool to select chests.
+
+### Merge Chests
+
+Place two or more `steel-chest` entities in a straight contiguous row or column.
+
+For example:
+
+```text
+[C][C][C][C][C][C]
+```
+
+Select the entire row with the merge tool.
+
+The chests are replaced by one Train Container occupying the same area:
+
+```text
+[      Train Container      ]
+```
+
+Vertical rows work the same way.
+
+Only straight layouts are supported:
+
+```text
+1 x N
+N x 1
+```
+
+Rectangular groups such as `2 x 3` are not supported.
+
+There must be no gaps in the selected row.
+
+### Split a Train Container
+
+Select a single existing Train Container with the same merge tool.
+
+The container is converted back into its original row or column of steel chests.
+
+No additional steel chests are required from the player's inventory.
+
+For example:
+
+```text
+[      Train Container      ]
+```
+
+becomes:
+
+```text
+[C][C][C][C][C][C]
+```
+
+The restored chests keep the Train Container's quality.
+
+## Inventory Safety
+
+Item preservation has priority over completing a merge or split.
+
+A source entity is not destroyed unless all readable inventory stacks can be transferred successfully.
+
+If the destination does not have enough inventory capacity, the transformation is cancelled instead of deleting items.
+
+This applies to both:
+
+* steel chests → Train Container
+* Train Container → steel chests
+
+## Quality Support
+
+All chests selected for a merge must have exactly the same quality.
+
+Example:
+
+```text
+Rare steel chest
+Rare steel chest
+Rare steel chest
+Rare steel chest
+```
+
+becomes one Rare Train Container.
+
+Splitting that container restores Rare steel chests.
+
+If the selected chests contain mixed qualities, the merge is cancelled.
+
+Example:
+
+```text
+Rare
+Rare
+Uncommon
+Rare
+```
+
+will not merge.
+
+The original chests, inventories, and circuit connections remain unchanged.
+
+## Circuit Network
+
+Red and green circuit wires are handled independently.
+
+### Chests → Train Container
+
+A wire color is preserved only when every selected source chest has at least one connection of that color.
+
+Connections between the selected chests themselves count when determining whether all chests are connected.
+
+Only connections to entities outside the selected chest group are recreated on the resulting Train Container.
+
+Example:
+
+```text
+[C]--red--[C]--red--[C]--red--[C]
+ |
+ +--red-- Combinator
+```
+
+All selected chests participate in the red network, so the resulting Train Container keeps the external red-wire connection.
+
+If even one selected chest has no red-wire connection at all, preservation of the red network is not required.
+
+The same rule is applied separately to green wires.
+
+### Train Container → Chests
+
+When a Train Container is split, its external red and green circuit connections are recreated on every restored chest.
+
+For example:
+
+```text
+Train Container --red-- Combinator
+```
+
+becomes conceptually:
+
+```text
+Chest 1 --red-- Combinator
+Chest 2 --red-- Combinator
+Chest 3 --red-- Combinator
+...
+```
+
+Script-created restoration may bypass normal wire reach checks so that existing connections are not lost simply because the Train Container was replaced by multiple chests.
+
+## Blueprint and Copy/Paste
+
+Normal steel Train Containers are not stored as Train Container entities inside newly created blueprints.
+
+Instead, they are expanded into their original steel-chest rows when the blueprint or copy operation is created.
+
+Example:
+
+World:
+
+```text
+[      Train Container      ]
+```
+
+Blueprint:
+
+```text
+[C][C][C][C][C][C]
+```
+
+This allows Factorio's normal blueprint rotation and mirroring behavior to work without requiring special Train Container rotation logic.
+
+### Quality
+
+Each generated blueprint chest keeps the quality of the original Train Container.
+
+A Rare Train Container is therefore recorded as Rare steel chests.
+
+### Circuit Wires
+
+Circuit connections are rebuilt when the Train Container is expanded inside the blueprint.
+
+Connections are remapped to the generated steel chests so that the recorded circuit network matches the result of splitting the Train Container normally.
+
+### Placement
+
+Blueprint placement does not automatically recreate Train Containers.
+
+Blueprints place normal steel-chest ghosts or steel chests.
+
+If desired, the resulting chest row can then be merged again using the Train Container merge tool.
+
+This behavior is intentional.
+
+### Older Blueprints
+
+The legacy Train Container blueprint rotation handler is retained for compatibility with older blueprints that may still contain Train Container prototype names directly.
 
 ## Infinity Containers
 
-The mod always registers hidden `infinity-container` variants for editor-mode blueprint design:
+The mod also provides editor-oriented Train Container variants based on `infinity-chest`.
 
-- `train-container-1-infinity`
-- `train-container-1-infinity-vertical`
-- `train-container-2-infinity`
-- `train-container-2-infinity-vertical`
-- `train-container-3-infinity`
-- `train-container-3-infinity-vertical`
-- `train-container-4-infinity`
-- `train-container-4-infinity-vertical`
+Infinity chests can be merged into line-shaped infinity Train Containers using the same general merge system.
 
-These variants use the same footprints, inventory sizes, and circuit connector support as the normal containers, but open the infinity-container GUI with `gui_mode = "all"`. They are separate prototypes instead of changing the normal containers' prototype type, which keeps normal saves and blueprints stable.
+They can also be split back into their source infinity chests.
 
-Infinity train container items have no recipes and are hidden from normal crafting. Like the base game's `infinity-chest`, they are sorted into the `other` item subgroup for editor/cheat use. Blueprints containing them keep the infinity entities instead of being rewritten to normal containers.
+Infinity Train Containers remain recorded as Train Container entities in blueprints rather than being rewritten to ordinary steel chests.
 
-## Rotation Approach
+This preserves their editor-specific behavior.
 
-For Factorio 2.0.77 compatibility, each size and infinity state has two real prototypes:
+## Container Sizes
 
-- horizontal: `train-container-N` or `train-container-N-infinity`
-- vertical: `train-container-N-vertical` or `train-container-N-infinity-vertical`
+Train Containers are generated as straight line-shaped containers.
 
-Both orientations expose `placeable_by` and have their own item. This keeps Factorio's normal blueprint, copy/cut selection, ghosts, construction, mining, and pipette behavior available on the real container entities.
+Supported layouts are:
 
-`control.lua` only handles the parts Factorio can safely expose for two separate prototypes:
+```text
+1 x N
+N x 1
+```
 
-- pressing rotate while holding a train container item swaps the cursor item between the horizontal and vertical variant
-- pressing rotate while holding a train container ghost cursor swaps the ghost between the horizontal and vertical variant
+The maximum supported length is controlled by the mod startup setting.
 
-Pressing rotate while hovering a placed train container intentionally does nothing. A placed container is treated as already occupying its chosen footprint; changing it into the other orientation would require deleting and recreating the entity, which can collide with surrounding buildings and disturb circuit wiring or undo/redo state. In practice this makes placed-container rotation equivalent to a left-right flip for a symmetric chest: no visible or physical change.
+The default maximum length is 27 tiles.
 
-Blueprint and clipboard rotation is intentionally not script-rewritten. Factorio's native blueprint rotation can rotate positions and entity directions, but it cannot treat two different `container` prototype names as two rotations of the same entity. The only script API available for changing those names is rewriting the blueprint entity list with `set_blueprint_entities()`, which is not safe enough in Factorio 2.0.77 for mixed blueprints, especially those containing rail or elevated-rail entities. Mixed blueprints therefore keep Factorio's native behavior: the blueprint rotates, but train container orientation names are not swapped by script.
+The supported range is currently:
+
+```text
+2 to 83 tiles
+```
+
+A Train Container prototype is generated for each supported length up to the configured maximum.
+
+## Inventory Size
+
+Container inventory capacity scales with the number of merged chests.
+
+A configurable inventory-size limit prevents excessively large inventories.
+
+Factorio quality modifiers are also respected when calculating the effective inventory capacity.
+
+## Performance
+
+Train Container is designed primarily to reduce the number of active chest entities in large builds.
+
+Once created, a Train Container is a normal Factorio container entity.
+
+The mod does not continuously scan containers and does not use `on_tick` processing for merge, split, inventory, circuit, or blueprint behavior.
+
+Runtime scripting is only used when relevant player actions occur.
 
 ## Cargo Ships Cleanup
 
-Cargo Ships uses a hidden/selectable `bridge_gate` helper whose localized name is the railway movable bridge. Earlier experimental blueprint rewriting could leave that helper overlapping a train container in editor saves or clipboard-derived placements. Current Train Container code no longer creates or rewrites Cargo Ships entities.
+Older experimental versions could leave hidden Cargo Ships bridge helper entities overlapping Train Containers in some saves.
 
-If a stale Cargo Ships bridge helper is already overlapping a train container, run:
+If this occurs, run:
 
 ```text
 /train-container-clean-cargoships-bridges
 ```
 
-The command only removes `bridge_gate` and `bridge_base` entities whose bounding boxes overlap an existing train container. It is intentionally manual so legitimate Cargo Ships bridges elsewhere are not touched.
+The command removes overlapping:
 
-The unpacked working folder is named `TrainContainer`, so `info.json.name` is kept as `TrainContainer` for local loading. The gameplay prototype IDs are the requested `train-container-1` through `train-container-4`.
-
-## Size Math
-
-Lengths are generated from:
-
-```lua
-length = 6 * wagons + (wagons - 1)
+```text
+bridge_gate
+bridge_base
 ```
 
-The selection box spans the exact tile footprint:
+entities only where they overlap an existing Train Container.
 
-```lua
--- vertical
-{{-0.5, -length / 2}, {0.5, length / 2}}
+The command is manual so legitimate Cargo Ships bridges elsewhere are not affected.
 
--- horizontal
-{{-length / 2, -0.5}, {length / 2, 0.5}}
+## Limitations
+
+* Only straight `1 x N` and `N x 1` chest groups are supported
+* Mixed-quality chests cannot be merged
+* Blueprint placement creates normal chests rather than automatically recreating Train Containers
+* Train Container transformations require enough inventory capacity to preserve all items
+* Automatic train detection, LTN integration, Cybersyn integration, and custom train-station logic are not provided
+
+## Credits
+
+Train Container contains code and graphics derived from:
+
+**WideChests**
+by Atria1234
+
+WideChests is licensed under the MIT License.
+
+See:
+
+```text
+THIRD_PARTY_LICENSES.md
 ```
 
-The collision box leaves a 0.1 tile border on the long axis and a 0.1 tile border on the short axis:
+for full attribution and third-party license information.
 
-```lua
--- vertical
-{{-0.4, -length / 2 + 0.1}, {0.4, length / 2 - 0.1}}
+## License
 
--- horizontal
-{{-length / 2 + 0.1, -0.4}, {length / 2 - 0.1, 0.4}}
+Train Container is released under the MIT License.
+
+See:
+
+```text
+LICENSE
 ```
-
-Odd lengths are centered on a tile. Even lengths are centered on a tile boundary on the long axis and on a tile center on the short axis, matching Factorio's normal placement grid for rectangular buildings.
-
-## Graphics
-
-The entity graphics reuse MIT-licensed steel chest segment art from WideChests. Runtime sprites are assembled from end and middle segments as separate layers, so the art is tiled instead of stretched.
-
-See `THIRD_PARTY_LICENSES.md` for source attribution and license text.
