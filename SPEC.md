@@ -52,4 +52,18 @@ When merging source chests into one TrainContainer, a wire color is restored onl
 
 ## Blueprint And Rotation
 
-Existing blueprint and ghost behavior must remain compatible with the current prototype names, `placeable_by` definitions, and custom blueprint rotation handler. The rotation handler may swap TrainContainer prototype names in blueprint entities, but this feature is not redesigned as part of merge or split changes.
+When a player creates a blueprint or copy blueprint, normal steel TrainContainers are expanded inside the blueprint only. The source world entities are not changed.
+
+Blueprint setup expansion follows the same footprint as runtime splitting:
+
+- a 1xN normal TrainContainer is recorded as N `steel-chest` blueprint entities;
+- an Nx1 normal TrainContainer is recorded as N `steel-chest` blueprint entities;
+- each generated `steel-chest` preserves the TrainContainer blueprint entity's `quality`;
+- other blueprint entities and tiles are otherwise preserved;
+- editor infinity TrainContainers remain recorded as TrainContainers to preserve their editor blueprint workflow.
+
+Blueprint circuit wires are rebuilt after expansion. Any wire that referenced a removed TrainContainer entity number is remapped to the generated `steel-chest` entity numbers. If both wire endpoints are expanded TrainContainers, each generated source chest is connected to each generated target chest for that wire color and connector pair. Wires to entities that are not present in the blueprint are not created.
+
+Entity numbers for blueprint expansion are deterministic. Unchanged blueprint entities keep their existing entity numbers. The first generated `steel-chest` for a replaced TrainContainer reuses the TrainContainer's original entity number, and additional generated chests use new numbers above the previous maximum blueprint entity number.
+
+Newly created blueprints no longer require TrainContainer-specific rotation for normal steel TrainContainers because they contain steel chest rows or columns. The custom blueprint rotation handler remains for compatibility with older blueprints that still contain TrainContainer prototype names.
