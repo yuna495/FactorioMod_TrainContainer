@@ -4,6 +4,7 @@
 *.tmp
 *.bak
 *.old
+TrainContainer_*/
 
 # Codex/verification scratch directories
 .verify-*

@@ -4,7 +4,7 @@ data:extend(
 		type = 'item-group',
 		name = MergingChests.item_group_names.merged_chests,
 		order = 'wide-chests',
-		icon = '__base__/graphics/item-group/logistics.png',
+		icon = '__base__/graphics/icons/steel-chest.png',
 		icon_size = 64,
 	},
 	{
