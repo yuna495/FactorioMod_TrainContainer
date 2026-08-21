@@ -22,9 +22,12 @@ train_transfer.long_side_center_max_distance = 2.35
 train_transfer.long_side_south_center_max_distance = 2.1
 train_transfer.long_axis_end_margin = 0.25
 train_transfer.minimum_long_axis_overlap = 0.5
+train_transfer.cybersyn2_shim_spacing = 5
+train_transfer.cybersyn2_shim_rail_search_width = 1.5
 
 local epsilon = 0.05
 local cached_train_container_names = nil
+local rail_types = { 'straight-rail', 'curved-rail-a', 'curved-rail-b', 'half-diagonal-rail' }
 
 local function ensure_storage()
 	storage.train_transfer = storage.train_transfer or {}
@@ -34,6 +37,7 @@ local function ensure_storage()
 	data.active_trains = data.active_trains or {}
 	data.container_registrations = data.container_registrations or {}
 	data.destroyed_registrations = data.destroyed_registrations or {}
+	data.cybersyn2_shims = data.cybersyn2_shims or {}
 	data.active_transfer_count = data.active_transfer_count or 0
 	return data
 end
@@ -218,6 +222,178 @@ local function register_container(data, container)
 	})
 end
 
+local function raise_script_built(entity)
+	if entity and entity.valid then
+		script.raise_event(defines.events.script_raised_built, { entity = entity })
+	end
+end
+
+local function raise_script_destroy(entity)
+	if entity and entity.valid then
+		script.raise_event(defines.events.script_raised_destroy, { entity = entity })
+	end
+end
+
+local function destroy_cybersyn2_shims(data, unit_number, raise_destroy)
+	local shim_group = data.cybersyn2_shims[unit_number]
+	if shim_group == nil then
+		return
+	end
+
+	for _, shim in ipairs(shim_group.entities or {}) do
+		if shim and shim.valid then
+			if raise_destroy then
+				raise_script_destroy(shim)
+			end
+			shim.destroy()
+		end
+	end
+	data.cybersyn2_shims[unit_number] = nil
+end
+
+local function get_cybersyn2_shim_points(entity, width, height)
+	local points = {}
+	local horizontal = width > height
+	local length = horizontal and width or height
+	local start = horizontal
+		and (entity.position.x - (width - 1) / 2)
+		or (entity.position.y - (height - 1) / 2)
+
+	for offset = 0, length - 1, train_transfer.cybersyn2_shim_spacing do
+		if horizontal then
+			table.insert(points, { x = start + offset, y = entity.position.y })
+		else
+			table.insert(points, { x = entity.position.x, y = start + offset })
+		end
+	end
+
+	return points
+end
+
+local function squared_distance(a, b)
+	local dx = a.x - b.x
+	local dy = a.y - b.y
+	return dx * dx + dy * dy
+end
+
+local function find_nearest_rail(surface, area, point)
+	local nearest = nil
+	local nearest_distance = nil
+	for _, rail in ipairs(surface.find_entities_filtered({ area = area, type = rail_types })) do
+		local distance = squared_distance(rail.position, point)
+		if nearest_distance == nil or distance < nearest_distance then
+			nearest = rail
+			nearest_distance = distance
+		end
+	end
+	return nearest
+end
+
+local function get_cybersyn2_side_rail_search_areas(container, point, horizontal)
+	local half_width = train_transfer.cybersyn2_shim_rail_search_width / 2
+	if horizontal then
+		return {
+			{
+				left_top = {
+					x = point.x - half_width,
+					y = container.position.y - train_transfer.long_side_center_max_distance,
+				},
+				right_bottom = {
+					x = point.x + half_width,
+					y = container.position.y - train_transfer.long_side_center_min_distance,
+				},
+			},
+			{
+				left_top = {
+					x = point.x - half_width,
+					y = container.position.y + train_transfer.long_side_center_min_distance,
+				},
+				right_bottom = {
+					x = point.x + half_width,
+					y = container.position.y + train_transfer.long_side_south_center_max_distance,
+				},
+			},
+		}
+	end
+
+	return {
+		{
+			left_top = {
+				x = container.position.x - train_transfer.long_side_center_max_distance,
+				y = point.y - half_width,
+			},
+			right_bottom = {
+				x = container.position.x - train_transfer.long_side_center_min_distance,
+				y = point.y + half_width,
+			},
+		},
+		{
+			left_top = {
+				x = container.position.x + train_transfer.long_side_center_min_distance,
+				y = point.y - half_width,
+			},
+			right_bottom = {
+				x = container.position.x + train_transfer.long_side_south_center_max_distance,
+				y = point.y + half_width,
+			},
+		},
+	}
+end
+
+local function create_cybersyn2_shim_at(container, position, rail, direction)
+	local shim = container.surface.create_entity({
+		name = MergingChests.cybersyn2_inserter_shim_name,
+		position = position,
+		direction = direction,
+		force = container.force,
+		raise_built = false,
+		create_build_effect_smoke = false,
+	})
+	if shim == nil then
+		return nil
+	end
+
+	shim.active = false
+	if rail and rail.valid then
+		shim.pickup_position = rail.position
+		shim.drop_position = position
+	end
+	raise_script_built(shim)
+	return shim
+end
+
+local function rebuild_cybersyn2_shims(data, container)
+	local is_container, width, height = is_direct_transfer_train_container(container)
+	if not is_container or container.unit_number == nil or prototypes.entity[MergingChests.cybersyn2_inserter_shim_name] == nil then
+		return
+	end
+
+	destroy_cybersyn2_shims(data, container.unit_number, true)
+
+	local horizontal = width > height
+	local directions = horizontal
+		and { defines.direction.north, defines.direction.south }
+		or { defines.direction.west, defines.direction.east }
+	local entities = {}
+	for _, point in ipairs(get_cybersyn2_shim_points(container, width, height)) do
+		for side_index, area in ipairs(get_cybersyn2_side_rail_search_areas(container, point, horizontal)) do
+			local rail = find_nearest_rail(container.surface, area, point)
+			local direction = directions[side_index]
+			local shim = rail and create_cybersyn2_shim_at(container, point, rail, direction)
+			if shim then
+				table.insert(entities, shim)
+			end
+		end
+	end
+
+	if #entities > 0 then
+		data.cybersyn2_shims[container.unit_number] = {
+			container = container,
+			entities = entities,
+		}
+	end
+end
+
 local function unregister_container(data, unit_number)
 	local registration_number = data.container_registrations[unit_number]
 	if registration_number ~= nil then
@@ -372,6 +548,7 @@ end
 
 local function cleanup_container(data, unit_number)
 	data.modes[unit_number] = nil
+	destroy_cybersyn2_shims(data, unit_number, true)
 	unregister_container(data, unit_number)
 	remove_container_from_active_trains(data, unit_number)
 
@@ -597,10 +774,12 @@ function train_transfer.set_mode(entity, mode)
 	local data = ensure_storage()
 	if mode == train_transfer.modes.off then
 		data.modes[entity.unit_number] = nil
+		destroy_cybersyn2_shims(data, entity.unit_number, true)
 		unregister_container(data, entity.unit_number)
 	else
 		data.modes[entity.unit_number] = mode
 		register_container(data, entity)
+		rebuild_cybersyn2_shims(data, entity)
 	end
 
 	remove_container_from_active_trains(data, entity.unit_number)
@@ -778,6 +957,40 @@ local function cleanup_invalid_active_trains()
 	end
 end
 
+local function cleanup_invalid_cybersyn2_shims()
+	local data = ensure_storage()
+	for unit_number, shim_group in pairs(data.cybersyn2_shims) do
+		if shim_group.container == nil or not shim_group.container.valid then
+			destroy_cybersyn2_shims(data, unit_number, false)
+		end
+	end
+end
+
+local function rebuild_all_cybersyn2_shims()
+	local data = ensure_storage()
+	local unit_numbers = {}
+	for unit_number, _ in pairs(data.cybersyn2_shims) do
+		table.insert(unit_numbers, unit_number)
+	end
+	for _, unit_number in ipairs(unit_numbers) do
+		destroy_cybersyn2_shims(data, unit_number, true)
+	end
+
+	local train_container_names = get_train_container_names()
+	if #train_container_names == 0 then
+		return
+	end
+
+	for _, surface in pairs(game.surfaces) do
+		for _, container in ipairs(surface.find_entities_filtered({ name = train_container_names })) do
+			if container.valid and container.unit_number ~= nil and data.modes[container.unit_number] ~= nil then
+				register_container(data, container)
+				rebuild_cybersyn2_shims(data, container)
+			end
+		end
+	end
+end
+
 script.on_init(function()
 	ensure_storage()
 	update_nth_tick_handler()
@@ -785,6 +998,8 @@ end)
 
 script.on_configuration_changed(function()
 	ensure_storage()
+	cleanup_invalid_cybersyn2_shims()
+	rebuild_all_cybersyn2_shims()
 	cleanup_invalid_active_trains()
 	update_nth_tick_handler()
 end)
@@ -797,7 +1012,13 @@ end)
 script.on_event(defines.events.on_train_changed_state, on_train_changed_state)
 script.on_event(defines.events.on_train_created, on_train_created)
 script.on_event(defines.events.on_object_destroyed, on_object_destroyed)
-script.on_event(defines.events.on_surface_deleted, cleanup_invalid_active_trains)
-script.on_event(defines.events.on_surface_cleared, cleanup_invalid_active_trains)
+script.on_event(defines.events.on_surface_deleted, function()
+	cleanup_invalid_active_trains()
+	cleanup_invalid_cybersyn2_shims()
+end)
+script.on_event(defines.events.on_surface_cleared, function()
+	cleanup_invalid_active_trains()
+	cleanup_invalid_cybersyn2_shims()
+end)
 
 return train_transfer

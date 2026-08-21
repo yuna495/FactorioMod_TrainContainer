@@ -102,3 +102,61 @@ MergingChests.create_mergeable_chest(
 )
 
 table.insert(data.raw['selection-tool'][MergingChests.merge_selection_tool_name].select.entity_filters, 'infinity-chest')
+
+local function create_cybersyn2_inserter_shim()
+	local base_inserter = data.raw.inserter.inserter
+	if base_inserter == nil then
+		return
+	end
+
+	local empty_sprite = {
+		filename = '__core__/graphics/empty.png',
+		priority = 'extra-high',
+		width = 1,
+		height = 1,
+	}
+	local shim = table.deepcopy(base_inserter)
+	shim.name = MergingChests.cybersyn2_inserter_shim_name
+	shim.localised_name = { 'entity-name.'..MergingChests.cybersyn2_inserter_shim_name }
+	shim.icon = '__base__/graphics/icons/inserter.png'
+	shim.flags = {
+		'not-blueprintable',
+		'not-deconstructable',
+		'not-flammable',
+		'not-on-map',
+		'not-selectable-in-game',
+		'hide-alt-info',
+	}
+	shim.hidden = true
+	shim.hidden_in_factoriopedia = true
+	shim.minable = nil
+	shim.placeable_by = nil
+	shim.collision_box = nil
+	shim.selection_box = nil
+	shim.collision_mask = { layers = {}, not_colliding_with_itself = true }
+	shim.energy_source = { type = 'electric', usage_priority = 'secondary-input', drain = '0W' }
+	shim.energy_per_movement = '0J'
+	shim.energy_per_rotation = '0J'
+	shim.max_health = 1
+	shim.corpse = nil
+	shim.dying_explosion = nil
+	shim.damaged_trigger_effect = nil
+	shim.open_sound = nil
+	shim.close_sound = nil
+	shim.working_sound = nil
+	shim.hand_base_picture = empty_sprite
+	shim.hand_closed_picture = empty_sprite
+	shim.hand_open_picture = empty_sprite
+	shim.hand_base_shadow = empty_sprite
+	shim.hand_closed_shadow = empty_sprite
+	shim.hand_open_shadow = empty_sprite
+	shim.platform_picture = { sheet = empty_sprite }
+	shim.circuit_connector = nil
+	shim.circuit_wire_max_distance = 0
+	shim.default_stack_control_input_signal = nil
+	shim.allow_custom_vectors = true
+
+	data:extend({ shim })
+end
+
+create_cybersyn2_inserter_shim()

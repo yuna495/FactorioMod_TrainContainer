@@ -38,6 +38,8 @@ MergingChests.merge_selection_tool_name = MergingChests.prefix_with_modname('mer
 
 MergingChests.merge_shortcut_name = MergingChests.prefix_with_modname('merge-chest-selector')
 
+MergingChests.cybersyn2_inserter_shim_name = MergingChests.prefix_with_modname('cybersyn2-inserter-shim')
+
 MergingChests.setting_names = {
 	inventory_size_limit = MergingChests.prefix_with_modname('inventory-size-limit'),
 	warehouse_threshold = MergingChests.prefix_with_modname('warehouse-threshold'),

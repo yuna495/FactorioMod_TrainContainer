@@ -100,6 +100,8 @@ Transfer speed is controlled by named runtime constants. Direct loading must mov
 
 Direct transfer must never intentionally void items. Items are removed from the source only after the destination accepts them. Quality and other item stack metadata must be preserved during transfer, and destination inventory filters, bars, stack limits, and cargo wagon filters must be respected.
 
+When direct transfer is enabled, the mod may create hidden inactive inserter helper entities for compatibility with train logistics mods that infer station cargo capability from inserters beside rails. These helpers do not perform item transfer, are not visible, selectable, minable, deconstructable, or blueprintable, and must be removed when direct transfer is disabled or when the owning TrainContainer is removed. Helper inserters are considered at the first TrainContainer tile and then every five tiles along the long axis. For each point, nearby rails on either long side may receive a helper with its pickup position aligned to that rail so other mods can associate the helper with the station equipment layout. Their construction and removal may raise script-built/script-destroyed events so other mods can update their station equipment caches.
+
 Blueprint behavior is unchanged. Loading mode is not written to blueprint tags, restored from blueprints, or transferred by copy/paste settings. Normal steel TrainContainers are still expanded to `steel-chest` blueprint entities during blueprint setup.
 
 When a TrainContainer is split, mined, destroyed, or otherwise removed, its stored loading mode and any active transfer state are discarded. Split `steel-chest` entities do not inherit loading mode. Merging `steel-chest` entities creates a TrainContainer in `off` mode.
