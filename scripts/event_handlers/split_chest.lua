@@ -27,9 +27,11 @@ local function create_split_chest(merged_chest, split_chest_name, width, height,
 				position = { x = left_top.x + dX, y = left_top.y + dY },
 				force = player.force,
 				raise_built = true,
-				bar = bar,
 				quality = merged_chest.quality
 			}
+			if prototypes.entity[split_chest_name].type ~= 'infinity-container' then
+				entity_data.bar = bar
+			end
 
 			if is_ghost then
 				entity_data.name = "entity-ghost"
@@ -77,11 +79,7 @@ function MergingChests.try_split_merged_chest(merged_chest, player, player_index
 	end
 
 	if MergingChests.is_infinity_chest_name(merged_chest_name) then
-		player.create_local_flying_text({
-			text = { 'flying-text.'..MergingChests.prefix_with_modname('infinity-split-disabled') },
-			position = merged_chest.position
-		})
-		return false
+		split_chest_name = 'infinity-chest'
 	end
 
 	if not is_ghost and not MergingChests.can_move_inventories({ merged_chest }, split_chest_name, width * height, merged_chest.quality) then
