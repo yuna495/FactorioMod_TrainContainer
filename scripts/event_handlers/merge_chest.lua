@@ -249,9 +249,14 @@ local function on_player_selected_area(event)
 			for is_ghost, entities in pairs(group) do
 				local target_entity_name = MergingChests.get_merge_target_chest_name(entity_name)
 				for _, chest_group_to_merge in ipairs(group_chests(entities, target_entity_name, is_ghost)) do
-					if is_ghost or MergingChests.can_move_inventories(chest_group_to_merge.entities, chest_group_to_merge.merged_chest_name, bounding_box.area(chest_group_to_merge.bounding_box)) then
+					local quality = MergingChests.get_common_quality(chest_group_to_merge.entities)
+					if quality == nil then
+						player.create_local_flying_text({
+							text = { 'flying-text.'..MergingChests.prefix_with_modname('different-quality-chests') },
+							position = chest_group_to_merge.entities[1].position
+						})
+					elseif is_ghost or MergingChests.can_move_inventories(chest_group_to_merge.entities, chest_group_to_merge.merged_chest_name, bounding_box.area(chest_group_to_merge.bounding_box), quality) then
 						local total_bar = MergingChests.get_total_bar(chest_group_to_merge.entities, is_ghost)
-						local quality = MergingChests.get_minimum_quality(chest_group_to_merge.entities)
 
 						local merged_chest = create_merged_chest(
 							player,

@@ -10,11 +10,13 @@ The mod remains event-driven. It must not add `on_tick` polling or always-on mon
 
 The merge selection tool uses normal selection for both supported operations:
 
-- selecting a contiguous straight line of two or more unmerged `steel-chest` entities merges them into the corresponding TrainContainer;
+- selecting a contiguous straight line of two or more unmerged `steel-chest` entities of the same quality merges them into the corresponding TrainContainer with that same quality;
 - selecting exactly one existing TrainContainer splits it back into its original `steel-chest` line;
 - selections that mix unmerged chests with TrainContainers, contain multiple TrainContainers, or otherwise do not identify one unambiguous operation do nothing.
 
 Only straight 1xN or Nx1 chest groups are valid merge targets. Groups with gaps, rectangles wider than one tile in both dimensions, unsupported lengths, or unsupported prototypes are ignored.
+
+All selected steel chests in a merge group must have the same `quality.name`. If any selected chest has a different quality, the merge does nothing and source chests, inventories, and wires remain unchanged.
 
 ## Inventory Safety
 
@@ -29,19 +31,16 @@ Capacity checks use the actual destination prototype inventory size for the qual
 
 ## Splitting TrainContainers
 
-Splitting a real TrainContainer requires one `steel-chest` item per occupied tile at the TrainContainer's quality.
+Splitting a real TrainContainer does not check, consume, or refund player inventory items. The original steel chests were already consumed by the merge operation.
 
-If the player has enough matching-quality `steel-chest` items:
+When a real TrainContainer is split:
 
-- those items are consumed from the player's main inventory;
-- real `steel-chest` entities of the same quality are created for each tile;
+- one real `steel-chest` entity is created for each occupied tile;
+- every restored steel chest uses `merged_chest.quality`;
 - the TrainContainer inventory is safely distributed into the restored chests;
 - the TrainContainer is destroyed only after the item transfer succeeds.
 
-If the player does not have enough matching-quality `steel-chest` items:
-
-- an empty TrainContainer may be replaced by `steel-chest` ghosts without consuming items;
-- a TrainContainer containing items must remain unchanged, because ghosts cannot preserve its contents.
+When an entity ghost TrainContainer is split, it remains a ghost-only transformation: one `steel-chest` ghost is created for each occupied tile and no real steel chests are created.
 
 ## Circuit Connections
 

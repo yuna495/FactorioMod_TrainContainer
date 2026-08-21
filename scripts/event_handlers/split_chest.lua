@@ -84,26 +84,7 @@ function MergingChests.try_split_merged_chest(merged_chest, player, player_index
 		return false
 	end
 
-	local required_chests = width * height
-	local quality = merged_chest.quality
-	local has_required_chests = is_ghost or MergingChests.get_player_item_count(player, split_chest_name, quality) >= required_chests
-	local source_inventory = merged_chest.get_inventory(defines.inventory.chest)
-	local source_has_items = source_inventory and not source_inventory.is_empty()
-
-	if not has_required_chests and source_has_items then
-		player.create_local_flying_text({
-			text = { 'flying-text.'..MergingChests.prefix_with_modname('items-would-be-deleted-split-missing-chests') },
-			position = merged_chest.position
-		})
-		return false
-	end
-
-	if not is_ghost and has_required_chests and not MergingChests.remove_player_items(player, split_chest_name, required_chests, quality) then
-		return false
-	end
-
-	if not is_ghost and has_required_chests and not MergingChests.can_move_inventories({ merged_chest }, split_chest_name, required_chests) then
-		MergingChests.refund_player_items(player, split_chest_name, required_chests, quality)
+	if not is_ghost and not MergingChests.can_move_inventories({ merged_chest }, split_chest_name, width * height, merged_chest.quality) then
 		player.create_local_flying_text({
 			text = { 'flying-text.'..MergingChests.prefix_with_modname('items-would-be-deleted-split') },
 			position = merged_chest.position
@@ -112,22 +93,18 @@ function MergingChests.try_split_merged_chest(merged_chest, player, player_index
 	end
 
 	local total_bar = MergingChests.get_total_bar({ merged_chest }, is_ghost)
-	local split_chests = create_split_chest(merged_chest, split_chest_name, width, height, player, is_ghost or not has_required_chests, total_bar)
+	local split_chests = create_split_chest(merged_chest, split_chest_name, width, height, player, is_ghost, total_bar)
 	if not all_split_chests_created(split_chests) then
 		destroy_entities(split_chests)
-		if not is_ghost and has_required_chests then
-			MergingChests.refund_player_items(player, split_chest_name, required_chests, quality)
-		end
 		return false
 	end
 
-	if not is_ghost and has_required_chests then
+	if not is_ghost then
 		for _, split_chest in ipairs(split_chests) do
 			split_chest.last_user = player
 		end
 		if not MergingChests.move_inventories({ merged_chest }, split_chests) then
 			destroy_entities(split_chests)
-			MergingChests.refund_player_items(player, split_chest_name, required_chests, quality)
 			return false
 		end
 	end
@@ -138,7 +115,7 @@ function MergingChests.try_split_merged_chest(merged_chest, player, player_index
 		surface = merged_chest.surface,
 		merged_chest = merged_chest,
 		split_chests = split_chests,
-		is_ghost = is_ghost or not has_required_chests,
+		is_ghost = is_ghost,
 	})
 	merged_chest.destroy({ raise_destroy = true })
 

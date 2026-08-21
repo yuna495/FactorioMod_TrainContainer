@@ -19,13 +19,14 @@ end
 --- @param from_entities LuaEntity[]
 --- @param to_entity_name string
 --- @param to_entity_count integer
+--- @param quality LuaQualityPrototype | nil
 --- @return boolean
-function MergingChests.can_move_inventories(from_entities, to_entity_name, to_entity_count)
+function MergingChests.can_move_inventories(from_entities, to_entity_name, to_entity_count, quality)
 	local from_item_count = 0
 	for _, from_entity in ipairs(from_entities) do
 		from_item_count = from_item_count + non_blank_inventory_slots_count(from_entity)
 	end
-	local quality = MergingChests.get_minimum_quality(from_entities)
+	quality = quality or MergingChests.get_minimum_quality(from_entities)
 
 	local to_inventory_size = prototypes.entity[to_entity_name].get_inventory_size(defines.inventory.chest, quality) or 0
 
@@ -154,6 +155,21 @@ function MergingChests.get_minimum_quality(entities)
 	return min_quality or prototypes.quality['normal']
 end
 
+--- @param entities LuaEntity[]
+--- @return LuaQualityPrototype | nil
+function MergingChests.get_common_quality(entities)
+	local common_quality = nil
+	for _, entity in ipairs(entities) do
+		if common_quality == nil then
+			common_quality = entity.quality
+		elseif common_quality.name ~= entity.quality.name then
+			return nil
+		end
+	end
+
+	return common_quality or prototypes.quality['normal']
+end
+
 --- @param from_entities LuaEntity[]
 --- @param to_entities LuaEntity[]
 --- @param require_all_sources_per_color boolean | nil
@@ -219,45 +235,6 @@ function MergingChests.reconnect_circuits(from_entities, to_entities, require_al
 				end
 			end
 		end
-	end
-end
-
---- @param player LuaPlayer
---- @param item_name string
---- @param quality LuaQualityPrototype
---- @return integer
-function MergingChests.get_player_item_count(player, item_name, quality)
-	local inventory = player.get_main_inventory()
-	if inventory == nil then
-		return 0
-	end
-
-	local counts = inventory.get_item_quality_counts(item_name)
-	return counts[quality.name] or 0
-end
-
---- @param player LuaPlayer
---- @param item_name string
---- @param count integer
---- @param quality LuaQualityPrototype
---- @return boolean
-function MergingChests.remove_player_items(player, item_name, count, quality)
-	local inventory = player.get_main_inventory()
-	if inventory == nil then
-		return false
-	end
-
-	return inventory.remove({ name = item_name, count = count, quality = quality.name }) == count
-end
-
---- @param player LuaPlayer
---- @param item_name string
---- @param count integer
---- @param quality LuaQualityPrototype
-function MergingChests.refund_player_items(player, item_name, count, quality)
-	local inventory = player.get_main_inventory()
-	if inventory then
-		inventory.insert({ name = item_name, count = count, quality = quality.name })
 	end
 end
 
