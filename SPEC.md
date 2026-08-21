@@ -71,3 +71,33 @@ Blueprint circuit wires are rebuilt after expansion. Any wire that referenced a 
 Entity numbers for blueprint expansion are deterministic. Unchanged blueprint entities keep their existing entity numbers. The first generated `steel-chest` for a replaced TrainContainer reuses the TrainContainer's original entity number, and additional generated chests use new numbers above the previous maximum blueprint entity number.
 
 Newly created blueprints no longer require TrainContainer-specific rotation for normal steel TrainContainers because they contain steel chest rows or columns. The custom blueprint rotation handler remains for compatibility with older blueprints that still contain TrainContainer prototype names.
+
+## Direct Train Loading
+
+Normal steel TrainContainers support direct item transfer with adjacent `cargo-wagon` entities without inserters. Editor-only infinity TrainContainers do not participate in direct train loading.
+
+Each placed normal steel TrainContainer has one runtime loading mode:
+
+- `off`: no direct wagon transfer; this is the default for new TrainContainers and for existing save entities with no stored mode;
+- `load`: transfer items from the TrainContainer inventory to adjacent cargo wagon inventories;
+- `unload`: transfer items from adjacent cargo wagon inventories to the TrainContainer inventory.
+
+Loading mode is per placed entity and is stored in Factorio 2.x `storage` keyed by the TrainContainer's stable runtime identifier. Only non-`off` modes need persistent storage.
+
+The mode is changed through a per-player GUI that appears when a player opens a normal steel TrainContainer. The GUI must not replace or block the normal chest inventory GUI. Player GUI state is per player.
+
+The GUI may show a compact status line describing whether direct transfer is off, no nearby cargo wagon was found, a nearby wagon is not stopped at a station, long-side adjacency failed, or eligible adjacent wagons were found.
+
+Only directly adjacent `cargo-wagon` entities are eligible transfer targets. A wagon is adjacent only when its current selection bounding box touches, overlaps, or is close to one of the TrainContainer's long sides and overlaps the TrainContainer along that long axis. Selection boxes are used for this gameplay adjacency because cargo wagon collision boxes are much narrower than the visible wagon and would reject normal rail-adjacent station layouts. Wagons near a TrainContainer short end are not eligible.
+
+Direct transfer only runs while the train is stopped at a station, represented by `defines.train_state.wait_station`. The implementation remains event-driven: train state changes register or unregister active loading groups, and periodic processing is limited to currently active groups. The mod must not scan all TrainContainers, all trains, or all surfaces every tick.
+
+When one TrainContainer is adjacent to multiple cargo wagons in an active stopped train, the eligible wagons are processed in round-robin order. Complete equalization is not required.
+
+Transfer speed is controlled by named runtime constants. Direct loading must move bounded amounts over time rather than instantly moving an entire inventory.
+
+Direct transfer must never intentionally void items. Items are removed from the source only after the destination accepts them. Quality and other item stack metadata must be preserved during transfer, and destination inventory filters, bars, stack limits, and cargo wagon filters must be respected.
+
+Blueprint behavior is unchanged. Loading mode is not written to blueprint tags, restored from blueprints, or transferred by copy/paste settings. Normal steel TrainContainers are still expanded to `steel-chest` blueprint entities during blueprint setup.
+
+When a TrainContainer is split, mined, destroyed, or otherwise removed, its stored loading mode and any active transfer state are discarded. Split `steel-chest` entities do not inherit loading mode. Merging `steel-chest` entities creates a TrainContainer in `off` mode.
