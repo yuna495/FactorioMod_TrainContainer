@@ -3,6 +3,7 @@ local train_transfer = require('scripts.train_transfer')
 local frame_name = MergingChests.prefix_with_modname('direct-transfer-frame')
 local dropdown_name = MergingChests.prefix_with_modname('direct-transfer-mode')
 local status_label_name = MergingChests.prefix_with_modname('direct-transfer-status')
+local search_area_color = { r = 1, g = 0.9, b = 0, a = 0.22 }
 
 local mode_to_index = {
 	[train_transfer.modes.off] = 1,
@@ -49,13 +50,13 @@ local function update_status(player, entity)
 	end
 end
 
-local function is_normal_train_container(entity)
+local function is_direct_transfer_train_container(entity)
 	if entity == nil or not entity.valid or entity.name == 'entity-ghost' then
 		return false
 	end
 
 	local chest_name = MergingChests.get_merged_chest_info(entity.name)
-	return chest_name == MergingChests.chest_names.steel
+	return chest_name == MergingChests.chest_names.steel or chest_name == MergingChests.chest_names.infinity
 end
 
 local function get_player_state(player_index)
@@ -65,6 +66,41 @@ local function get_player_state(player_index)
 	return storage.train_transfer.players[player_index]
 end
 
+local function destroy_search_area(player_state)
+	if player_state == nil then
+		return
+	end
+
+	for _, render_object in ipairs(player_state.search_area_render_objects or {}) do
+		render_object.destroy()
+	end
+	player_state.search_area_render_objects = nil
+end
+
+local function draw_search_area(player, entity)
+	local player_state = get_player_state(player.index)
+	destroy_search_area(player_state)
+
+	local areas = train_transfer.get_wagon_search_areas(entity)
+	if #areas == 0 then
+		return
+	end
+
+	player_state.search_area_render_objects = {}
+	for _, area in ipairs(areas) do
+		table.insert(player_state.search_area_render_objects, rendering.draw_rectangle({
+			color = search_area_color,
+			width = 2,
+			filled = true,
+			left_top = area.left_top,
+			right_bottom = area.right_bottom,
+			surface = entity.surface,
+			players = { player },
+			draw_on_ground = true,
+		}))
+	end
+end
+
 local function destroy_gui(player)
 	local frame = player.gui.left[frame_name]
 	if frame then
@@ -72,12 +108,14 @@ local function destroy_gui(player)
 	end
 
 	if storage.train_transfer and storage.train_transfer.players then
+		destroy_search_area(storage.train_transfer.players[player.index])
 		storage.train_transfer.players[player.index] = nil
 	end
 end
 
 local function create_gui(player, entity)
 	destroy_gui(player)
+	draw_search_area(player, entity)
 
 	local mode = train_transfer.get_mode(entity)
 	if mode ~= train_transfer.modes.off then
@@ -126,7 +164,7 @@ local function on_gui_opened(event)
 		return
 	end
 
-	if is_normal_train_container(event.entity) then
+	if is_direct_transfer_train_container(event.entity) then
 		create_gui(player, event.entity)
 	else
 		destroy_gui(player)
@@ -141,7 +179,7 @@ local function on_gui_closed(event)
 
 	if event.element and event.element.valid and event.element.name == frame_name then
 		destroy_gui(player)
-	elseif event.entity == nil or is_normal_train_container(event.entity) then
+	elseif event.entity == nil or is_direct_transfer_train_container(event.entity) then
 		destroy_gui(player)
 	end
 end
@@ -167,6 +205,25 @@ local function on_gui_selection_state_changed(event)
 	end
 end
 
+local function on_selected_entity_changed(event)
+	local player = game.get_player(event.player_index)
+	if player == nil then
+		return
+	end
+
+	if is_direct_transfer_train_container(player.selected) then
+		draw_search_area(player, player.selected)
+	elseif storage.train_transfer and storage.train_transfer.players then
+		local player_state = storage.train_transfer.players[event.player_index]
+		if player_state and player_state.opened_entity and player_state.opened_entity.valid then
+			draw_search_area(player, player_state.opened_entity)
+		else
+			destroy_search_area(player_state)
+		end
+	end
+end
+
 script.on_event(defines.events.on_gui_opened, on_gui_opened)
 script.on_event(defines.events.on_gui_closed, on_gui_closed)
 script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)
+script.on_event(defines.events.on_selected_entity_changed, on_selected_entity_changed)

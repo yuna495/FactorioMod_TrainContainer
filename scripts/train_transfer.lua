@@ -17,7 +17,10 @@ train_transfer.mode_order = {
 train_transfer.nth_tick = 10
 train_transfer.items_per_container_cycle = 64
 train_transfer.wagon_search_radius = 5.0
-train_transfer.long_side_max_gap = 2.0
+train_transfer.long_side_center_min_distance = 0.55
+train_transfer.long_side_center_max_distance = 2.35
+train_transfer.long_side_south_center_max_distance = 2.1
+train_transfer.long_axis_end_margin = 0.25
 train_transfer.minimum_long_axis_overlap = 0.5
 
 local epsilon = 0.05
@@ -75,13 +78,16 @@ local function format_number(value)
 	return string.format('%.2f', value)
 end
 
-local function is_normal_train_container(entity)
+local function is_direct_transfer_train_container(entity)
 	if entity == nil or not entity.valid or entity.name == 'entity-ghost' then
 		return false
 	end
 
 	local chest_name, width, height = MergingChests.get_merged_chest_info(entity.name)
-	if chest_name ~= MergingChests.chest_names.steel or width == nil or height == nil then
+	if width == nil or height == nil then
+		return false
+	end
+	if chest_name ~= MergingChests.chest_names.steel and chest_name ~= MergingChests.chest_names.infinity then
 		return false
 	end
 
@@ -96,7 +102,7 @@ local function get_train_container_names()
 	cached_train_container_names = {}
 	for name, _ in pairs(prototypes.entity) do
 		local chest_name = MergingChests.get_merged_chest_info(name)
-		if chest_name == MergingChests.chest_names.steel then
+		if chest_name == MergingChests.chest_names.steel or chest_name == MergingChests.chest_names.infinity then
 			table.insert(cached_train_container_names, name)
 		end
 	end
@@ -104,34 +110,37 @@ local function get_train_container_names()
 	return cached_train_container_names
 end
 
-local function get_long_side_gap(container_box, wagon_box, horizontal)
-	if horizontal then
-		if wagon_box.right_bottom.y > container_box.left_top.y - epsilon and wagon_box.left_top.y < container_box.right_bottom.y + epsilon then
-			return 0
-		end
-		if wagon_box.right_bottom.y <= container_box.left_top.y + epsilon then
-			return container_box.left_top.y - wagon_box.right_bottom.y
-		end
-		if wagon_box.left_top.y >= container_box.right_bottom.y - epsilon then
-			return wagon_box.left_top.y - container_box.right_bottom.y
-		end
-	else
-		if wagon_box.right_bottom.x > container_box.left_top.x - epsilon and wagon_box.left_top.x < container_box.right_bottom.x + epsilon then
-			return 0
-		end
-		if wagon_box.right_bottom.x <= container_box.left_top.x + epsilon then
-			return container_box.left_top.x - wagon_box.right_bottom.x
-		end
-		if wagon_box.left_top.x >= container_box.right_bottom.x - epsilon then
-			return wagon_box.left_top.x - container_box.right_bottom.x
-		end
+local is_wagon_in_long_side_search_area
+
+local function get_long_side_center_distance(container, wagon, horizontal)
+	local delta = horizontal
+		and (wagon.position.y - container.position.y)
+		or (wagon.position.x - container.position.x)
+	local max_distance = delta > 0
+		and train_transfer.long_side_south_center_max_distance
+		or train_transfer.long_side_center_max_distance
+
+	return math.abs(delta), max_distance
+end
+
+local function is_center_distance_in_range(distance, max_distance)
+	return distance >= train_transfer.long_side_center_min_distance - epsilon
+		and distance <= max_distance + epsilon
+end
+
+local function describe_center_distance_failure(distance, max_distance)
+	if distance < train_transfer.long_side_center_min_distance - epsilon then
+		return 'too-close center-distance='..format_number(distance)
+	end
+	if distance > max_distance + epsilon then
+		return 'too-far center-distance='..format_number(distance)
 	end
 
 	return nil
 end
 
 local function is_adjacent_to_long_side(container, wagon)
-	local is_container, width, height = is_normal_train_container(container)
+	local is_container, width, height = is_direct_transfer_train_container(container)
 	if not is_container or wagon == nil or not wagon.valid or wagon.name ~= 'cargo-wagon' then
 		return false
 	end
@@ -140,6 +149,10 @@ local function is_adjacent_to_long_side(container, wagon)
 	local container_box = get_transfer_box(container)
 	local wagon_box = get_transfer_box(wagon)
 
+	if not is_wagon_in_long_side_search_area(container, wagon) then
+		return false
+	end
+
 	local overlap = horizontal
 		and interval_overlap(container_box.left_top.x, container_box.right_bottom.x, wagon_box.left_top.x, wagon_box.right_bottom.x)
 		or interval_overlap(container_box.left_top.y, container_box.right_bottom.y, wagon_box.left_top.y, wagon_box.right_bottom.y)
@@ -147,12 +160,12 @@ local function is_adjacent_to_long_side(container, wagon)
 		return false
 	end
 
-	local gap = get_long_side_gap(container_box, wagon_box, horizontal)
-	return gap ~= nil and gap >= -epsilon and gap <= train_transfer.long_side_max_gap
+	local center_distance, max_distance = get_long_side_center_distance(container, wagon, horizontal)
+	return is_center_distance_in_range(center_distance, max_distance)
 end
 
 local function get_adjacency_status(container, wagon)
-	local is_container, width, height = is_normal_train_container(container)
+	local is_container, width, height = is_direct_transfer_train_container(container)
 	if not is_container then
 		return false, 'not-container'
 	end
@@ -164,6 +177,10 @@ local function get_adjacency_status(container, wagon)
 	local container_box = get_transfer_box(container)
 	local wagon_box = get_transfer_box(wagon)
 
+	if not is_wagon_in_long_side_search_area(container, wagon) then
+		return false, 'outside-side-band'
+	end
+
 	local overlap = horizontal
 		and interval_overlap(container_box.left_top.x, container_box.right_bottom.x, wagon_box.left_top.x, wagon_box.right_bottom.x)
 		or interval_overlap(container_box.left_top.y, container_box.right_bottom.y, wagon_box.left_top.y, wagon_box.right_bottom.y)
@@ -171,15 +188,10 @@ local function get_adjacency_status(container, wagon)
 		return false, 'short-side overlap='..format_number(overlap)
 	end
 
-	local gap = get_long_side_gap(container_box, wagon_box, horizontal)
-	if gap == nil then
-		return false, 'overlapping-or-short-side'
-	end
-	if gap < -epsilon then
-		return false, 'overlapping gap='..format_number(gap)
-	end
-	if gap > train_transfer.long_side_max_gap then
-		return false, 'too-far gap='..format_number(gap)
+	local center_distance, max_distance = get_long_side_center_distance(container, wagon, horizontal)
+	local distance_failure = describe_center_distance_failure(center_distance, max_distance)
+	if distance_failure ~= nil then
+		return false, distance_failure
 	end
 
 	return true, 'adjacent'
@@ -215,12 +227,94 @@ local function unregister_container(data, unit_number)
 end
 
 function train_transfer.get_mode(entity)
-	if entity == nil or not entity.valid or entity.unit_number == nil or not is_normal_train_container(entity) then
+	if entity == nil or not entity.valid or entity.unit_number == nil or not is_direct_transfer_train_container(entity) then
 		return train_transfer.modes.off
 	end
 
 	local data = ensure_storage()
 	return data.modes[entity.unit_number] or train_transfer.modes.off
+end
+
+function train_transfer.get_wagon_search_area(entity)
+	if entity == nil or not entity.valid or not is_direct_transfer_train_container(entity) then
+		return nil
+	end
+
+	return expand_box(get_transfer_box(entity), train_transfer.wagon_search_radius)
+end
+
+function train_transfer.get_wagon_search_areas(entity)
+	local is_container, width, height = is_direct_transfer_train_container(entity)
+	if not is_container then
+		return {}
+	end
+
+	local box = get_transfer_box(entity)
+	local horizontal = width > height
+	if horizontal then
+		return {
+			{
+				left_top = {
+					x = box.left_top.x - train_transfer.long_axis_end_margin,
+					y = entity.position.y - train_transfer.long_side_center_max_distance,
+				},
+				right_bottom = {
+					x = box.right_bottom.x + train_transfer.long_axis_end_margin,
+					y = entity.position.y - train_transfer.long_side_center_min_distance,
+				},
+			},
+			{
+				left_top = {
+					x = box.left_top.x - train_transfer.long_axis_end_margin,
+					y = entity.position.y + train_transfer.long_side_center_min_distance,
+				},
+				right_bottom = {
+					x = box.right_bottom.x + train_transfer.long_axis_end_margin,
+					y = entity.position.y + train_transfer.long_side_south_center_max_distance,
+				},
+			},
+		}
+	end
+
+	return {
+		{
+			left_top = {
+				x = entity.position.x - train_transfer.long_side_center_max_distance,
+				y = box.left_top.y - train_transfer.long_axis_end_margin,
+			},
+			right_bottom = {
+				x = entity.position.x - train_transfer.long_side_center_min_distance,
+				y = box.right_bottom.y + train_transfer.long_axis_end_margin,
+			},
+		},
+		{
+			left_top = {
+				x = entity.position.x + train_transfer.long_side_center_min_distance,
+				y = box.left_top.y - train_transfer.long_axis_end_margin,
+			},
+			right_bottom = {
+				x = entity.position.x + train_transfer.long_side_south_center_max_distance,
+				y = box.right_bottom.y + train_transfer.long_axis_end_margin,
+			},
+		},
+	}
+end
+
+local function position_in_box(position, box)
+	return position.x >= box.left_top.x
+		and position.x <= box.right_bottom.x
+		and position.y >= box.left_top.y
+		and position.y <= box.right_bottom.y
+end
+
+is_wagon_in_long_side_search_area = function(container, wagon)
+	for _, area in ipairs(train_transfer.get_wagon_search_areas(container)) do
+		if position_in_box(wagon.position, area) then
+			return true
+		end
+	end
+
+	return false
 end
 
 local function remove_wagon_from_group(group, wagon_unit_number)
@@ -449,7 +543,7 @@ local function refresh_trains_near_container(container)
 end
 
 function train_transfer.get_status(entity)
-	if entity == nil or not entity.valid or not is_normal_train_container(entity) then
+	if entity == nil or not entity.valid or not is_direct_transfer_train_container(entity) then
 		return 'unsupported', 0
 	end
 
@@ -496,7 +590,7 @@ function train_transfer.set_mode(entity, mode)
 	if mode ~= train_transfer.modes.load and mode ~= train_transfer.modes.unload then
 		mode = train_transfer.modes.off
 	end
-	if entity == nil or not entity.valid or entity.unit_number == nil or not is_normal_train_container(entity) then
+	if entity == nil or not entity.valid or entity.unit_number == nil or not is_direct_transfer_train_container(entity) then
 		return false
 	end
 

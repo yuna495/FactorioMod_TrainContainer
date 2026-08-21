@@ -74,9 +74,9 @@ Newly created blueprints no longer require TrainContainer-specific rotation for 
 
 ## Direct Train Loading
 
-Normal steel TrainContainers support direct item transfer with adjacent `cargo-wagon` entities without inserters. Editor-only infinity TrainContainers do not participate in direct train loading.
+Normal steel TrainContainers and editor-only infinity TrainContainers support direct item transfer with adjacent `cargo-wagon` entities without inserters. Infinity TrainContainers use the same runtime mode, GUI, wagon search, and transfer behavior as steel TrainContainers.
 
-Each placed normal steel TrainContainer has one runtime loading mode:
+Each placed TrainContainer has one runtime loading mode:
 
 - `off`: no direct wagon transfer; this is the default for new TrainContainers and for existing save entities with no stored mode;
 - `load`: transfer items from the TrainContainer inventory to adjacent cargo wagon inventories;
@@ -84,11 +84,13 @@ Each placed normal steel TrainContainer has one runtime loading mode:
 
 Loading mode is per placed entity and is stored in Factorio 2.x `storage` keyed by the TrainContainer's stable runtime identifier. Only non-`off` modes need persistent storage.
 
-The mode is changed through a per-player GUI that appears when a player opens a normal steel TrainContainer. The GUI must not replace or block the normal chest inventory GUI. Player GUI state is per player.
+The mode is changed through a per-player GUI that appears when a player opens a steel or infinity TrainContainer. The GUI must not replace or block the normal container inventory GUI. Player GUI state is per player.
 
 The GUI may show a compact status line describing whether direct transfer is off, no nearby cargo wagon was found, a nearby wagon is not stopped at a station, long-side adjacency failed, or eligible adjacent wagons were found.
 
-Only directly adjacent `cargo-wagon` entities are eligible transfer targets. A wagon is adjacent only when its current selection bounding box touches, overlaps, or is close to one of the TrainContainer's long sides and overlaps the TrainContainer along that long axis. Selection boxes are used for this gameplay adjacency because cargo wagon collision boxes are much narrower than the visible wagon and would reject normal rail-adjacent station layouts. Wagons near a TrainContainer short end are not eligible.
+When a player hovers over or opens a steel or infinity TrainContainer, the mod may draw player-local translucent yellow filled rectangles showing the long-side cargo wagon center-point search bands used by direct train loading diagnostics. This rendering is informational and must not affect transfer behavior.
+
+Only directly adjacent `cargo-wagon` entities are eligible transfer targets. A wagon is adjacent only when its center position falls within one of the TrainContainer's long-side search bands and its selection bounding box overlaps the TrainContainer along that long axis. Center-point side bands are used for the perpendicular side test because cargo wagon selection boxes can overlap nearby containers unevenly between rail lanes. Wagons near a TrainContainer short end are not eligible.
 
 Direct transfer only runs while the train is stopped at a station, represented by `defines.train_state.wait_station`. The implementation remains event-driven: train state changes register or unregister active loading groups, and periodic processing is limited to currently active groups. The mod must not scan all TrainContainers, all trains, or all surfaces every tick.
 
