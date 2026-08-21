@@ -3,22 +3,13 @@ require('init')
 data:extend(
 {
 	{
-		name = MergingChests.setting_names.max_length,
-		type = 'int-setting',
-		setting_type = 'startup',
-		minimum_value = 2,
-		maximum_value = 83,
-		default_value = 27,
-		order = '01'
-	},
-	{
 		name = MergingChests.setting_names.inventory_size_limit,
 		type = 'int-setting',
 		setting_type = 'startup',
 		minimum_value = 1,
 		maximum_value = 3984,
 		default_value = 3984,
-		order = '02'
+		order = '01'
 	},
 	{
 		name = MergingChests.setting_names.warehouse_threshold,
@@ -27,7 +18,7 @@ data:extend(
 		minimum_value = 2,
 		default_value = 28,
 		hidden = true,
-		order = '03'
+		order = '02'
 	},
 	{
 		name = MergingChests.setting_names.circuit_connector_position,
@@ -46,13 +37,6 @@ data:extend(
 			'bottom-middle',
 			'bottom-left'
 		},
-		order = '04'
-	},
-	{
-		name = MergingChests.setting_names.allow_delete_items,
-		type = 'bool-setting',
-		setting_type = 'runtime-per-user',
-		default_value = false,
-		order = '05'
+		order = '03'
 	}
 })

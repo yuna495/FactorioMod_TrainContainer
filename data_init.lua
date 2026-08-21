@@ -243,11 +243,10 @@ end
 --- @param entity_data entity_data
 --- @param segments_data segments_data
 function MergingChests.create_mergeable_chest(entity_data, segments_data)
-	local mod_settings = MergingChests.get_mod_settings(entity_data.chest_name)
 	local max_item_count = 0
 
 	if segments_data.high_segments then
-		for height = 2, mod_settings.max_length do
+		for height = 2, MergingChests.max_length do
 			if MergingChests.is_size_allowed(1, height, entity_data.chest_name) then
 				data:extend({ create_high_chest_entity(entity_data, segments_data.high_segments, height) })
 				max_item_count = math.max(max_item_count, height)
@@ -255,7 +254,7 @@ function MergingChests.create_mergeable_chest(entity_data, segments_data)
 		end
 	end
 
-	for width = 2, mod_settings.max_length do
+	for width = 2, MergingChests.max_length do
 		if segments_data.wide_segments then
 			if MergingChests.is_size_allowed(width, 1, entity_data.chest_name) then
 				data:extend({ create_wide_chest_entity(entity_data, segments_data.wide_segments, width) })

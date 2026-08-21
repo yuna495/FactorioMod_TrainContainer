@@ -6,6 +6,7 @@ MergingChests = MergingChests or { }
 MergingChests.mod_name = 'TrainContainer'
 MergingChests.prototype_prefix = 'train-container-'
 MergingChests.prototype_pattern_prefix = 'train%-container%-'
+MergingChests.max_length = 83
 
 --- @param value string
 function MergingChests.prefix_with_modname(value)
@@ -38,11 +39,9 @@ MergingChests.merge_selection_tool_name = MergingChests.prefix_with_modname('mer
 MergingChests.merge_shortcut_name = MergingChests.prefix_with_modname('merge-chest-selector')
 
 MergingChests.setting_names = {
-	max_length = MergingChests.prefix_with_modname('max-chest-length'),
 	inventory_size_limit = MergingChests.prefix_with_modname('inventory-size-limit'),
 	warehouse_threshold = MergingChests.prefix_with_modname('warehouse-threshold'),
 	circuit_connector_position = MergingChests.prefix_with_modname('circuit-connector-position'),
-	allow_delete_items = MergingChests.prefix_with_modname('allow-delete-items'),
 }
 
 MergingChests.chest_names = {
@@ -66,7 +65,6 @@ MergingChests.chest_names = {
 
 --- @alias mod_settings
 --- | { chest_name: string | nil }
---- | { max_length: number }
 --- | { inventory_size_limit: number }
 --- | { warehouse_threshold: number }
 --- | { circuit_connector_position: circuit_connector_position }
@@ -83,7 +81,6 @@ local function parse_settings(chest_name)
 	--- @type mod_settings
 	local mod_settings = {
 		chest_name = chest_name,
-		max_length = get_startup_setting_value(MergingChests.setting_names.max_length),
 		inventory_size_limit = get_startup_setting_value(MergingChests.setting_names.inventory_size_limit),
 		warehouse_threshold = get_startup_setting_value(MergingChests.setting_names.warehouse_threshold),
 		circuit_connector_position = get_startup_setting_value(MergingChests.setting_names.circuit_connector_position),
@@ -117,11 +114,9 @@ end
 --- @param height integer
 --- @param chest_name string | nil
 function MergingChests.is_size_allowed(width, height, chest_name)
-    local mod_settings = MergingChests.get_mod_settings(chest_name)
-
 	return (
-		width <= mod_settings.max_length and
-		height <= mod_settings.max_length and
+		width <= MergingChests.max_length and
+		height <= MergingChests.max_length and
 		(width == 1 or height == 1)
 	)
 end

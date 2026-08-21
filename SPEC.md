@@ -18,9 +18,13 @@ Only straight 1xN or Nx1 chest groups are valid merge targets. Groups with gaps,
 
 All selected source chests in a merge group must have the same `quality.name`. If any selected chest has a different quality, the merge does nothing and source chests, inventories, and wires remain unchanged.
 
+The maximum TrainContainer length is fixed by the mod at 83 tiles. It is not user-configurable, so all supported line-length prototypes remain available for save compatibility.
+
 ## Inventory Safety
 
 Inventory transfer must prefer preserving items over completing the transformation. Source entities must not be destroyed unless all readable item stacks were copied into the destination inventories.
+
+There is no setting or code path that intentionally voids items during merge or split.
 
 Capacity checks use the actual destination prototype inventory size for the quality that will be created:
 
