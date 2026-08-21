@@ -248,17 +248,16 @@ Supported layouts are:
 N x 1
 ```
 
-The maximum supported length is controlled by the mod startup setting.
-
-The default maximum length is 27 tiles.
-
-The supported range is currently:
+Supported lengths are:
 
 ```text
 2 to 83 tiles
 ```
 
-A Train Container prototype is generated for each supported length up to the configured maximum.
+The maximum length is fixed at 83 tiles.
+
+All supported Train Container prototypes are always generated so that existing
+containers remain available when loading saved games.
 
 ## Inventory Size
 
