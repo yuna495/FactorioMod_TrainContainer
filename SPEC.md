@@ -86,6 +86,8 @@ Loading mode is per placed entity and is stored in Factorio 2.x `storage` keyed 
 
 The mode is changed through a per-player GUI that appears when a player opens a steel or infinity TrainContainer. The GUI must not replace or block the normal container inventory GUI. Player GUI state is per player.
 
+Each placed TrainContainer may also store one optional item filter for direct train loading. When no filter is set, all item stacks are eligible for direct transfer. When an item filter is set, both loading and unloading skip source stacks whose item name does not match the filter. The filter is stored per placed entity, is independent of the current loading mode, is discarded when the TrainContainer is removed, and is not copied into blueprints.
+
 The GUI may show a compact status line describing whether direct transfer is off, no nearby cargo wagon was found, a nearby wagon is not stopped at a station, long-side adjacency failed, or eligible adjacent wagons were found.
 
 When a player hovers over or opens a steel or infinity TrainContainer, the mod may draw player-local translucent yellow filled rectangles showing the long-side cargo wagon center-point search bands used by direct train loading diagnostics. This rendering is informational and must not affect transfer behavior.

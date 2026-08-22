@@ -33,6 +33,7 @@ local function ensure_storage()
 	storage.train_transfer = storage.train_transfer or {}
 	local data = storage.train_transfer
 	data.modes = data.modes or {}
+	data.filters = data.filters or {}
 	data.players = data.players or {}
 	data.active_trains = data.active_trains or {}
 	data.container_registrations = data.container_registrations or {}
@@ -411,6 +412,15 @@ function train_transfer.get_mode(entity)
 	return data.modes[entity.unit_number] or train_transfer.modes.off
 end
 
+function train_transfer.get_filter(entity)
+	if entity == nil or not entity.valid or entity.unit_number == nil or not is_direct_transfer_train_container(entity) then
+		return nil
+	end
+
+	local data = ensure_storage()
+	return data.filters[entity.unit_number]
+end
+
 function train_transfer.get_wagon_search_area(entity)
 	if entity == nil or not entity.valid or not is_direct_transfer_train_container(entity) then
 		return nil
@@ -548,6 +558,7 @@ end
 
 local function cleanup_container(data, unit_number)
 	data.modes[unit_number] = nil
+	data.filters[unit_number] = nil
 	destroy_cybersyn2_shims(data, unit_number, true)
 	unregister_container(data, unit_number)
 	remove_container_from_active_trains(data, unit_number)
@@ -609,6 +620,7 @@ local function add_wagon_to_container_group(groups_by_container, container, wago
 		group = {
 			container = container,
 			mode = mode,
+			filter = train_transfer.get_filter(container),
 			wagons = {},
 			wagons_by_unit_number = {},
 			next_wagon = 1,
@@ -787,6 +799,21 @@ function train_transfer.set_mode(entity, mode)
 	return true
 end
 
+function train_transfer.set_filter(entity, item_name)
+	if item_name ~= nil and prototypes.item[item_name] == nil then
+		item_name = nil
+	end
+	if entity == nil or not entity.valid or entity.unit_number == nil or not is_direct_transfer_train_container(entity) then
+		return false
+	end
+
+	local data = ensure_storage()
+	data.filters[entity.unit_number] = item_name
+	remove_container_from_active_trains(data, entity.unit_number)
+	refresh_trains_near_container(entity)
+	return true
+end
+
 local function transfer_from_inventory(source_inventory, target_inventory, group, temp_inventory, limit)
 	if source_inventory == nil or target_inventory == nil or #source_inventory == 0 or limit <= 0 then
 		return 0
@@ -796,7 +823,7 @@ local function transfer_from_inventory(source_inventory, target_inventory, group
 	for offset = 0, #source_inventory - 1 do
 		local index = ((start_slot + offset - 2) % #source_inventory) + 1
 		local source_stack = source_inventory[index]
-		if source_stack.valid_for_read then
+		if source_stack.valid_for_read and (group.filter == nil or source_stack.name == group.filter) then
 			temp_inventory.clear()
 			if temp_inventory[1].set_stack(source_stack) then
 				local count_to_try = math.min(source_stack.count, limit)
