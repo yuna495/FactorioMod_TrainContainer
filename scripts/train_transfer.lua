@@ -15,7 +15,7 @@ train_transfer.mode_order = {
 }
 
 train_transfer.nth_tick = 10
-train_transfer.items_per_container_cycle = 64
+train_transfer.items_per_container_cycle = 100
 train_transfer.wagon_search_radius = 5.0
 train_transfer.long_side_center_min_distance = 0.55
 train_transfer.long_side_center_max_distance = 2.35
@@ -29,11 +29,37 @@ local epsilon = 0.05
 local cached_train_container_names = nil
 local rail_types = { 'straight-rail', 'curved-rail-a', 'curved-rail-b', 'half-diagonal-rail' }
 
+local function normalize_filter(filter)
+	if type(filter) == 'string' then
+		if prototypes.item[filter] then
+			return { name = filter, quality = 'normal' }
+		end
+		return nil
+	end
+	if type(filter) ~= 'table' or filter.name == nil or prototypes.item[filter.name] == nil then
+		return nil
+	end
+
+	local quality = filter.quality or 'normal'
+	if prototypes.quality[quality] == nil then
+		quality = 'normal'
+	end
+
+	return { name = filter.name, quality = quality }
+end
+
+local function migrate_filters(data)
+	for unit_number, filter in pairs(data.filters) do
+		data.filters[unit_number] = normalize_filter(filter)
+	end
+end
+
 local function ensure_storage()
 	storage.train_transfer = storage.train_transfer or {}
 	local data = storage.train_transfer
 	data.modes = data.modes or {}
 	data.filters = data.filters or {}
+	migrate_filters(data)
 	data.players = data.players or {}
 	data.active_trains = data.active_trains or {}
 	data.container_registrations = data.container_registrations or {}
@@ -41,6 +67,13 @@ local function ensure_storage()
 	data.cybersyn2_shims = data.cybersyn2_shims or {}
 	data.active_transfer_count = data.active_transfer_count or 0
 	return data
+end
+
+local function is_train_ready_for_transfer(train)
+	return train ~= nil
+		and train.valid
+		and train.state == defines.train_state.wait_station
+		and train.station ~= nil
 end
 
 local function set_nth_tick_handler(enabled)
@@ -421,6 +454,20 @@ function train_transfer.get_filter(entity)
 	return data.filters[entity.unit_number]
 end
 
+local function filters_equal(a, b)
+	if a == nil or b == nil then
+		return a == nil and b == nil
+	end
+	return a.name == b.name and a.quality == b.quality
+end
+
+local function stack_matches_filter(stack, filter)
+	if filter == nil then
+		return true
+	end
+	return stack.name == filter.name and stack.quality and stack.quality.name == filter.quality
+end
+
 function train_transfer.get_wagon_search_area(entity)
 	if entity == nil or not entity.valid or not is_direct_transfer_train_container(entity) then
 		return nil
@@ -671,7 +718,7 @@ local function build_active_groups_for_train(data, train)
 end
 
 local function start_train_transfer(train)
-	if train == nil or not train.valid or train.state ~= defines.train_state.wait_station or train.station == nil then
+	if not is_train_ready_for_transfer(train) then
 		return
 	end
 
@@ -719,7 +766,7 @@ local function refresh_trains_near_container(container)
 		area = expand_box(get_transfer_box(container), train_transfer.wagon_search_radius),
 		name = 'cargo-wagon',
 	})) do
-		if wagon.valid and wagon.train and wagon.train.valid then
+		if wagon.valid and is_train_ready_for_transfer(wagon.train) then
 			seen_trains[wagon.train.id] = wagon.train
 		end
 	end
@@ -751,7 +798,7 @@ function train_transfer.get_status(entity)
 		name = 'cargo-wagon',
 	})) do
 		nearby_wagon_count = nearby_wagon_count + 1
-		if wagon.train and wagon.train.valid and wagon.train.state == defines.train_state.wait_station and wagon.train.station ~= nil then
+		if is_train_ready_for_transfer(wagon.train) then
 			stopped_wagon_count = stopped_wagon_count + 1
 			local adjacent, reason = get_adjacency_status(entity, wagon)
 			if adjacent then
@@ -784,6 +831,11 @@ function train_transfer.set_mode(entity, mode)
 	end
 
 	local data = ensure_storage()
+	local old_mode = data.modes[entity.unit_number] or train_transfer.modes.off
+	if old_mode == mode then
+		return true
+	end
+
 	if mode == train_transfer.modes.off then
 		data.modes[entity.unit_number] = nil
 		destroy_cybersyn2_shims(data, entity.unit_number, true)
@@ -791,7 +843,9 @@ function train_transfer.set_mode(entity, mode)
 	else
 		data.modes[entity.unit_number] = mode
 		register_container(data, entity)
-		rebuild_cybersyn2_shims(data, entity)
+		if old_mode == train_transfer.modes.off then
+			rebuild_cybersyn2_shims(data, entity)
+		end
 	end
 
 	remove_container_from_active_trains(data, entity.unit_number)
@@ -799,22 +853,48 @@ function train_transfer.set_mode(entity, mode)
 	return true
 end
 
-function train_transfer.set_filter(entity, item_name)
-	if item_name ~= nil and prototypes.item[item_name] == nil then
-		item_name = nil
-	end
+function train_transfer.set_filter(entity, filter)
+	filter = normalize_filter(filter)
 	if entity == nil or not entity.valid or entity.unit_number == nil or not is_direct_transfer_train_container(entity) then
 		return false
 	end
 
 	local data = ensure_storage()
-	data.filters[entity.unit_number] = item_name
+	if filters_equal(data.filters[entity.unit_number], filter) then
+		return true
+	end
+
+	data.filters[entity.unit_number] = filter
 	remove_container_from_active_trains(data, entity.unit_number)
 	refresh_trains_near_container(entity)
 	return true
 end
 
-local function transfer_from_inventory(source_inventory, target_inventory, group, temp_inventory, limit)
+local function get_transferable_slot_count(inventory)
+	if inventory.supports_bar and inventory.supports_bar() then
+		return math.min(#inventory, inventory.get_bar() - 1)
+	end
+	return #inventory
+end
+
+local function transfer_to_inventory(source_stack, target_inventory, limit)
+	local target_slot_count = get_transferable_slot_count(target_inventory)
+	for target_index = 1, target_slot_count do
+		local target_stack = target_inventory[target_index]
+		local before_count = source_stack.count
+		local target_space = source_stack.prototype.stack_size
+		if target_stack.valid_for_read then
+			target_space = math.max(target_stack.prototype.stack_size - target_stack.count, 0)
+		end
+		local amount = math.min(before_count, limit, target_space)
+		if amount > 0 and target_stack.transfer_stack(source_stack, amount) then
+			return before_count - (source_stack.valid_for_read and source_stack.count or 0)
+		end
+	end
+	return 0
+end
+
+local function transfer_from_inventory(source_inventory, target_inventory, group, limit)
 	if source_inventory == nil or target_inventory == nil or #source_inventory == 0 or limit <= 0 then
 		return 0
 	end
@@ -823,23 +903,15 @@ local function transfer_from_inventory(source_inventory, target_inventory, group
 	for offset = 0, #source_inventory - 1 do
 		local index = ((start_slot + offset - 2) % #source_inventory) + 1
 		local source_stack = source_inventory[index]
-		if source_stack.valid_for_read and (group.filter == nil or source_stack.name == group.filter) then
-			temp_inventory.clear()
-			if temp_inventory[1].set_stack(source_stack) then
-				local count_to_try = math.min(source_stack.count, limit)
-				temp_inventory[1].count = count_to_try
-
-				local inserted = target_inventory.insert(temp_inventory[1])
-				if inserted > 0 then
-					if inserted >= source_stack.count then
-						source_stack.clear()
-						group.source_slot = (index % #source_inventory) + 1
-					else
-						source_stack.count = source_stack.count - inserted
-						group.source_slot = index
-					end
-					return inserted
+		if source_stack.valid_for_read and stack_matches_filter(source_stack, group.filter) then
+			local moved = transfer_to_inventory(source_stack, target_inventory, limit)
+			if moved > 0 then
+				if source_stack.valid_for_read then
+					group.source_slot = index
+				else
+					group.source_slot = (index % #source_inventory) + 1
 				end
+				return moved
 			end
 		end
 	end
@@ -850,7 +922,7 @@ end
 local function remove_invalid_wagons(group)
 	local wagons = {}
 	for _, wagon in ipairs(group.wagons or {}) do
-		if wagon.valid and wagon.train and wagon.train.valid and wagon.train.state == defines.train_state.wait_station then
+		if wagon.valid and is_train_ready_for_transfer(wagon.train) then
 			table.insert(wagons, wagon)
 		end
 	end
@@ -861,7 +933,7 @@ local function remove_invalid_wagons(group)
 	end
 end
 
-local function process_group(group, temp_inventory)
+local function process_group(group)
 	if group.container == nil or not group.container.valid then
 		return false
 	end
@@ -888,7 +960,7 @@ local function process_group(group, temp_inventory)
 			local wagon_inventory = wagon.get_inventory(defines.inventory.cargo_wagon)
 			local source_inventory = group.mode == train_transfer.modes.load and container_inventory or wagon_inventory
 			local target_inventory = group.mode == train_transfer.modes.load and wagon_inventory or container_inventory
-			moved = transfer_from_inventory(source_inventory, target_inventory, group, temp_inventory, remaining)
+			moved = transfer_from_inventory(source_inventory, target_inventory, group, remaining)
 			if moved > 0 then
 				break
 			end
@@ -906,15 +978,14 @@ end
 function train_transfer.on_nth_tick()
 	local data = ensure_storage()
 	local train_ids_to_stop = {}
-	local temp_inventory = game.create_inventory(1)
 
 	for train_id, active in pairs(data.active_trains) do
-		if active.train == nil or not active.train.valid or active.train.state ~= defines.train_state.wait_station then
+		if not is_train_ready_for_transfer(active.train) then
 			table.insert(train_ids_to_stop, train_id)
 		else
 			local groups = {}
 			for _, group in ipairs(active.groups or {}) do
-				if process_group(group, temp_inventory) then
+				if process_group(group) then
 					table.insert(groups, group)
 				end
 			end
@@ -925,8 +996,6 @@ function train_transfer.on_nth_tick()
 			end
 		end
 	end
-
-	temp_inventory.destroy()
 
 	for _, train_id in ipairs(train_ids_to_stop) do
 		stop_active_train(data, train_id)
@@ -975,7 +1044,7 @@ local function cleanup_invalid_active_trains()
 	local data = ensure_storage()
 	local train_ids_to_stop = {}
 	for train_id, active in pairs(data.active_trains) do
-		if active.train == nil or not active.train.valid or active.train.state ~= defines.train_state.wait_station then
+		if not is_train_ready_for_transfer(active.train) then
 			table.insert(train_ids_to_stop, train_id)
 		end
 	end

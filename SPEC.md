@@ -86,7 +86,7 @@ Loading mode is per placed entity and is stored in Factorio 2.x `storage` keyed 
 
 The mode is changed through a per-player GUI that appears when a player opens a steel or infinity TrainContainer. The GUI must not replace or block the normal container inventory GUI. Player GUI state is per player.
 
-Each placed TrainContainer may also store one optional item filter for direct train loading. When no filter is set, all item stacks are eligible for direct transfer. When an item filter is set, both loading and unloading skip source stacks whose item name does not match the filter. The filter is stored per placed entity, is independent of the current loading mode, is discarded when the TrainContainer is removed, and is not copied into blueprints.
+Each placed TrainContainer may also store one optional item-and-quality filter for direct train loading. When no filter is set, all item stacks of all qualities are eligible for direct transfer. When a filter is set, both loading and unloading skip source stacks whose item prototype name or quality name does not match the filter. The filter is stored per placed entity as plain persistent data containing the item prototype name and quality name, is independent of the current loading mode, is discarded when the TrainContainer is removed, and is not copied into blueprints. Older string-only item filters are migrated to the same item name with `normal` quality.
 
 The GUI may show a compact status line describing whether direct transfer is off, no nearby cargo wagon was found, a nearby wagon is not stopped at a station, long-side adjacency failed, or eligible adjacent wagons were found.
 
@@ -98,9 +98,9 @@ Direct transfer only runs while the train is stopped at a station, represented b
 
 When one TrainContainer is adjacent to multiple cargo wagons in an active stopped train, the eligible wagons are processed in round-robin order. Complete equalization is not required.
 
-Transfer speed is controlled by named runtime constants. Direct loading must move bounded amounts over time rather than instantly moving an entire inventory.
+Transfer speed is controlled by named runtime constants. Direct loading moves at most 100 items per TrainContainer every 10 ticks. At 60 UPS this is 600 items per second per active TrainContainer. Direct loading must move bounded amounts over time rather than instantly moving an entire inventory.
 
-Direct transfer must never intentionally void items. Items are removed from the source only after the destination accepts them. Quality and other item stack metadata must be preserved during transfer, and destination inventory filters, bars, stack limits, and cargo wagon filters must be respected.
+Direct transfer must never intentionally void items. Items are removed from the source only after the destination accepts them. Quality and other item stack metadata must be preserved during transfer, and destination inventory filters, bars, stack limits, and cargo wagon filters must be respected. The implementation should avoid per-cycle temporary inventory allocation when Factorio runtime APIs can safely move item stacks directly while preserving metadata and respecting destination constraints.
 
 When direct transfer is enabled, the mod may create hidden inactive inserter helper entities for compatibility with train logistics mods that infer station cargo capability from inserters beside rails. These helpers do not perform item transfer, are not visible, selectable, minable, deconstructable, or blueprintable, and must be removed when direct transfer is disabled or when the owning TrainContainer is removed. Helper inserters are considered at the first TrainContainer tile and then every five tiles along the long axis. For each point, nearby rails on either long side may receive a helper with its pickup position aligned to that rail so other mods can associate the helper with the station equipment layout. Their construction and removal may raise script-built/script-destroyed events so other mods can update their station equipment caches.
 

@@ -138,9 +138,6 @@ local function create_gui(player, entity)
 	draw_search_area(player, entity)
 
 	local mode = train_transfer.get_mode(entity)
-	if mode ~= train_transfer.modes.off then
-		train_transfer.set_mode(entity, mode)
-	end
 
 	local frame = player.gui.left.add({
 		type = 'frame',
@@ -179,8 +176,8 @@ local function create_gui(player, entity)
 	filter_flow.add({
 		type = 'choose-elem-button',
 		name = filter_name,
-		elem_type = 'item',
-		item = train_transfer.get_filter(entity),
+		elem_type = 'item-with-quality',
+		['item-with-quality'] = train_transfer.get_filter(entity),
 	})
 	frame.add({
 		type = 'label',

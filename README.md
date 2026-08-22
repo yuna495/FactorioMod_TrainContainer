@@ -26,6 +26,9 @@ Tested with:
 * Blueprint and copy/paste support
 * Blueprint rotation works by recording normal chests instead of Train Container entities
 * Editor-only infinity-container support
+* Direct loading and unloading between Train Containers and adjacent cargo wagons
+* Optional item + quality filter for direct train loading
+* Cybersyn2 station-equipment compatibility helpers
 * No continuous runtime polling
 
 ## Basic Usage
@@ -237,6 +240,99 @@ Infinity Train Containers remain recorded as Train Container entities in bluepri
 
 This preserves their editor-specific behavior.
 
+Infinity Train Containers also support direct train loading and unloading. This is intended for editor testing, blueprint checks, and station-layout experiments.
+
+## Direct Train Loading
+
+Train Containers can transfer items directly to or from adjacent `cargo-wagon` entities without visible inserters or loaders.
+
+This feature is available for both:
+
+* normal steel Train Containers
+* editor infinity Train Containers
+
+Open a Train Container to show the direct transfer GUI. The normal container inventory GUI remains available.
+
+The mode setting is stored per placed Train Container:
+
+* `Off`: no direct transfer
+* `Load to wagon`: move items from the Train Container into adjacent cargo wagons
+* `Unload from wagon`: move items from adjacent cargo wagons into the Train Container
+
+Direct transfer only runs while the train is stopped at a station. A cargo wagon must be beside the long side of the Train Container; wagons at the short ends are ignored.
+
+When multiple adjacent cargo wagons are eligible, they are processed in round-robin order.
+
+The current transfer limit is:
+
+```text
+100 items / 10 ticks / Train Container
+```
+
+At 60 UPS this is up to:
+
+```text
+600 items/s / active Train Container
+```
+
+The transfer speed is fixed for now. It does not scale with Train Container length, number of adjacent wagons, or quality.
+
+### Direct Transfer Filter
+
+The direct transfer GUI includes an optional item filter.
+
+The filter stores both:
+
+* item prototype
+* quality
+
+For example, filtering `iron-plate / normal` transfers only normal iron plates. Uncommon, rare, or higher-quality iron plates are not transferred by that filter.
+
+If no filter is set, all items and all qualities are eligible.
+
+The same filter applies to both loading and unloading.
+
+### Transfer Safety
+
+Direct transfer uses Factorio item-stack transfer APIs so item stack metadata is preserved where the game supports it, including quality and other stack data.
+
+Destination constraints are respected, including:
+
+* cargo wagon inventory filters
+* inventory bars
+* stack size limits
+* full destination inventories
+
+Items are removed from the source only when the destination accepts them.
+
+### Search-Area Display
+
+When a Train Container is selected or opened, the mod may draw translucent yellow rectangles showing the wagon-detection area.
+
+This is a diagnostic overlay only. It does not affect transfer behavior.
+
+## Cybersyn2 Compatibility
+
+Cybersyn2 detects station equipment by looking for inserters and loaders near rails.
+
+Because Train Container direct transfer does not use real inserters, the mod creates hidden inactive helper inserters when direct transfer is enabled. These helpers exist only so Cybersyn2 and similar station logic can recognize that the Train Container side can load or unload cargo wagons.
+
+The helper inserters:
+
+* are invisible
+* are inactive
+* do not transfer items
+* consume no energy
+* have no collision
+* cannot be selected, mined, deconstructed, or blueprinted
+* are removed when direct transfer is turned off or when the owning Train Container is removed
+
+Helpers are placed at the first Train Container tile and then every five tiles along the long axis, on rail-facing sides where nearby rails are found.
+
+Changing between load and unload mode keeps existing helpers when their position does not need to change. Simply opening or closing the GUI does not recreate helpers.
+
+The actual item movement is always performed by Train Container runtime logic, not by the helper inserters.
+
 ## Container Sizes
 
 Train Containers are generated as straight line-shaped containers.
@@ -277,6 +373,10 @@ The mod does not continuously scan containers and does not use `on_tick` process
 
 Runtime scripting is only used when relevant player actions occur.
 
+Direct train loading uses a 10-tick handler only while at least one stopped train has active adjacent Train Container transfer groups. When no active transfer exists, the periodic handler is disabled.
+
+Cybersyn2 helper inserters are rebuilt only when needed, such as when direct transfer is enabled, disabled, or compatibility state is rebuilt after configuration changes. Opening the GUI does not rebuild them.
+
 ## Cargo Ships Cleanup
 
 Older experimental versions could leave hidden Cargo Ships bridge helper entities overlapping Train Containers in some saves.
@@ -304,7 +404,9 @@ The command is manual so legitimate Cargo Ships bridges elsewhere are not affect
 * Mixed-quality chests cannot be merged
 * Blueprint placement creates normal chests rather than automatically recreating Train Containers
 * Train Container transformations require enough inventory capacity to preserve all items
-* Automatic train detection, LTN integration, Cybersyn integration, and custom train-station logic are not provided
+* Direct transfer works only with cargo wagons stopped at train stations
+* Direct transfer does not read train schedules, station names, requests, or circuit conditions by itself
+* Cybersyn2 compatibility is detection-oriented; Cybersyn2 may see the hidden helper inserters, but actual item movement is still handled by Train Container
 
 ## Credits
 
