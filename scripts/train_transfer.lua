@@ -26,6 +26,7 @@ train_transfer.cybersyn2_shim_spacing = 5
 train_transfer.cybersyn2_shim_rail_search_width = 1.5
 
 local epsilon = 0.05
+local filter_schema_version = 2
 local cached_train_container_names = nil
 local rail_types = { 'straight-rail', 'curved-rail-a', 'curved-rail-b', 'half-diagonal-rail' }
 
@@ -59,13 +60,21 @@ local function ensure_storage()
 	local data = storage.train_transfer
 	data.modes = data.modes or {}
 	data.filters = data.filters or {}
-	migrate_filters(data)
 	data.players = data.players or {}
 	data.active_trains = data.active_trains or {}
 	data.container_registrations = data.container_registrations or {}
 	data.destroyed_registrations = data.destroyed_registrations or {}
 	data.cybersyn2_shims = data.cybersyn2_shims or {}
 	data.active_transfer_count = data.active_transfer_count or 0
+	return data
+end
+
+local function migrate_storage()
+	local data = ensure_storage()
+	if data.filter_schema_version ~= filter_schema_version then
+		migrate_filters(data)
+		data.filter_schema_version = filter_schema_version
+	end
 	return data
 end
 
@@ -1088,12 +1097,12 @@ local function rebuild_all_cybersyn2_shims()
 end
 
 script.on_init(function()
-	ensure_storage()
+	migrate_storage()
 	update_nth_tick_handler()
 end)
 
 script.on_configuration_changed(function()
-	ensure_storage()
+	migrate_storage()
 	cleanup_invalid_cybersyn2_shims()
 	rebuild_all_cybersyn2_shims()
 	cleanup_invalid_active_trains()
