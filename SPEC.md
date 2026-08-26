@@ -74,7 +74,7 @@ Newly created blueprints no longer require TrainContainer-specific rotation for 
 
 ## Direct Train Loading
 
-Normal steel TrainContainers and editor-only infinity TrainContainers support direct item transfer with adjacent `cargo-wagon` entities without inserters. Infinity TrainContainers use the same runtime mode, GUI, wagon search, and transfer behavior as steel TrainContainers.
+Normal steel TrainContainers and editor-only infinity TrainContainers support direct item transfer with adjacent `cargo-wagon` type entities without inserters, including cargo wagons added by other mods. Infinity TrainContainers use the same runtime mode, GUI, wagon search, and transfer behavior as steel TrainContainers.
 
 Each placed TrainContainer has one runtime loading mode:
 
@@ -92,7 +92,7 @@ The GUI may show a compact status line describing whether direct transfer is off
 
 When a player hovers over or opens a steel or infinity TrainContainer, the mod may draw player-local translucent yellow filled rectangles showing the long-side cargo wagon center-point search bands used by direct train loading diagnostics. This rendering is informational and must not affect transfer behavior.
 
-Only directly adjacent `cargo-wagon` entities are eligible transfer targets. A wagon is adjacent only when its center position falls within one of the TrainContainer's long-side search bands and its selection bounding box overlaps the TrainContainer along that long axis. Center-point side bands are used for the perpendicular side test because cargo wagon selection boxes can overlap nearby containers unevenly between rail lanes. Wagons near a TrainContainer short end are not eligible.
+Only directly adjacent `cargo-wagon` type entities are eligible transfer targets. A wagon is adjacent only when its center position falls within one of the TrainContainer's long-side search bands and its selection bounding box overlaps the TrainContainer along that long axis. Center-point side bands are used for the perpendicular side test because cargo wagon selection boxes can overlap nearby containers unevenly between rail lanes. Wagons near a TrainContainer short end are not eligible.
 
 Direct transfer only runs while the train is stopped at a station, represented by `defines.train_state.wait_station`. The implementation remains event-driven: train state changes register or unregister active loading groups, and periodic processing is limited to currently active groups. The mod must not scan all TrainContainers, all trains, or all surfaces every tick.
 

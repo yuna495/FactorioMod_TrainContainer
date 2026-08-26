@@ -188,7 +188,7 @@ end
 
 local function is_adjacent_to_long_side(container, wagon)
 	local is_container, width, height = is_direct_transfer_train_container(container)
-	if not is_container or wagon == nil or not wagon.valid or wagon.name ~= 'cargo-wagon' then
+	if not is_container or wagon == nil or not wagon.valid or wagon.type ~= 'cargo-wagon' then
 		return false
 	end
 
@@ -216,7 +216,7 @@ local function get_adjacency_status(container, wagon)
 	if not is_container then
 		return false, 'not-container'
 	end
-	if wagon == nil or not wagon.valid or wagon.name ~= 'cargo-wagon' then
+	if wagon == nil or not wagon.valid or wagon.type ~= 'cargo-wagon' then
 		return false, 'not-cargo-wagon'
 	end
 
@@ -773,7 +773,7 @@ local function refresh_trains_near_container(container)
 	local seen_trains = {}
 	for _, wagon in ipairs(container.surface.find_entities_filtered({
 		area = expand_box(get_transfer_box(container), train_transfer.wagon_search_radius),
-		name = 'cargo-wagon',
+		type = 'cargo-wagon',
 	})) do
 		if wagon.valid and is_train_ready_for_transfer(wagon.train) then
 			seen_trains[wagon.train.id] = wagon.train
@@ -804,7 +804,7 @@ function train_transfer.get_status(entity)
 
 	for _, wagon in ipairs(entity.surface.find_entities_filtered({
 		area = expand_box(get_transfer_box(entity), train_transfer.wagon_search_radius),
-		name = 'cargo-wagon',
+		type = 'cargo-wagon',
 	})) do
 		nearby_wagon_count = nearby_wagon_count + 1
 		if is_train_ready_for_transfer(wagon.train) then

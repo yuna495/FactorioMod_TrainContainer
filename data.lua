@@ -130,6 +130,7 @@ local function create_cybersyn2_inserter_shim()
 	shim.hidden = true
 	shim.hidden_in_factoriopedia = true
 	shim.minable = nil
+	shim.next_upgrade = nil
 	shim.placeable_by = nil
 	shim.collision_box = nil
 	shim.selection_box = nil

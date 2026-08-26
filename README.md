@@ -244,7 +244,7 @@ Infinity Train Containers also support direct train loading and unloading. This 
 
 ## Direct Train Loading
 
-Train Containers can transfer items directly to or from adjacent `cargo-wagon` entities without visible inserters or loaders.
+Train Containers can transfer items directly to or from adjacent `cargo-wagon` type entities without visible inserters or loaders. This includes compatible cargo wagons added by other mods.
 
 This feature is available for both:
 
