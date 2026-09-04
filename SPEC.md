@@ -98,7 +98,7 @@ Direct transfer only runs while the train is stopped at a station, represented b
 
 When one TrainContainer is adjacent to multiple cargo wagons in an active stopped train, the eligible wagons are processed in round-robin order. Complete equalization is not required.
 
-Transfer speed is controlled by named runtime constants. Direct loading moves at most 100 items per TrainContainer every 10 ticks. At 60 UPS this is 600 items per second per active TrainContainer. Direct loading must move bounded amounts over time rather than instantly moving an entire inventory.
+Transfer speed is controlled by named runtime constants. Direct loading moves at most 500 items per TrainContainer every 10 ticks. At 60 UPS this is 3000 items per second per active TrainContainer. Direct loading must move bounded amounts over time rather than instantly moving an entire inventory.
 
 Direct transfer must never intentionally void items. Items are removed from the source only after the destination accepts them. Quality and other item stack metadata must be preserved during transfer, and destination inventory filters, bars, stack limits, and cargo wagon filters must be respected. The implementation should avoid per-cycle temporary inventory allocation when Factorio runtime APIs can safely move item stacks directly while preserving metadata and respecting destination constraints.
 

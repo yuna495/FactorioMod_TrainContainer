@@ -266,13 +266,13 @@ When multiple adjacent cargo wagons are eligible, they are processed in round-ro
 The current transfer limit is:
 
 ```text
-100 items / 10 ticks / Train Container
+500 items / 10 ticks / Train Container
 ```
 
 At 60 UPS this is up to:
 
 ```text
-600 items/s / active Train Container
+3000 items/s / active Train Container
 ```
 
 The transfer speed is fixed for now. It does not scale with Train Container length, number of adjacent wagons, or quality.

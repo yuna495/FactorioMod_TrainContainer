@@ -15,7 +15,7 @@ train_transfer.mode_order = {
 }
 
 train_transfer.nth_tick = 10
-train_transfer.items_per_container_cycle = 100
+train_transfer.items_per_container_cycle = 500
 train_transfer.wagon_search_radius = 5.0
 train_transfer.long_side_center_min_distance = 0.55
 train_transfer.long_side_center_max_distance = 2.35
