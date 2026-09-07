@@ -6,10 +6,11 @@ require('scripts.event_handlers.rotate_blueprint')
 require('scripts.event_handlers.setup_blueprint')
 require('scripts.event_handlers.split_chest')
 require('scripts.event_handlers.train_transfer_gui')
+require('scripts.train_transfer_patch')
 
 commands.add_command(
 	'train-container-clean-cargoships-bridges',
-	{ 'command-help.train-container-clean-cargoships-bridges' },
+	{ 'command-help.train-container-cargoships-bridges' },
 	function(command)
 		local player = command.player_index and game.get_player(command.player_index)
 		local train_container_names = {}
