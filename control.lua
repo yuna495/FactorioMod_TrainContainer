@@ -6,7 +6,6 @@ require('scripts.event_handlers.rotate_blueprint')
 require('scripts.event_handlers.setup_blueprint')
 require('scripts.event_handlers.split_chest')
 require('scripts.event_handlers.train_transfer_gui')
-require('scripts.train_transfer_patch')
 
 commands.add_command(
 	'train-container-clean-cargoships-bridges',
