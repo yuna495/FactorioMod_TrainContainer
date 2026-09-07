@@ -994,10 +994,20 @@ function train_transfer.on_nth_tick()
 		else
 			local groups = {}
 			for _, group in ipairs(active.groups or {}) do
-				if process_group(group) then
-					table.insert(groups, group)
-				end
-			end
+    		local profiler = helpers.create_profiler()
+
+    		local keep = process_group(group)
+
+    		profiler.stop()
+
+    		if game.tick % 600 == 0 then
+        log({"", "TrainContainer process_group: ", profiler})
+    		end
+
+    		if keep then
+        table.insert(groups, group)
+    		end
+end
 
 			active.groups = groups
 			if #active.groups == 0 then
