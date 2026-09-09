@@ -750,6 +750,7 @@ function train_transfer.set_mode(entity, mode)
   end
   remove_container_from_active_trains(data, entity.unit_number)
   refresh_trains_near_container(entity)
+  status_lamps.refresh(entity)
   return true
 end
 function train_transfer.set_filter(entity, filter)

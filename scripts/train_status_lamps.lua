@@ -4,7 +4,7 @@ local interval = 60
 local colors = {
 	green = { 0.12, 1, 0.18, 1 },
 	yellow = { 1, 0.65, 0.04, 1 },
-	red = { 1, 0.06, 0.025, 1 }
+	red = { 1, 0.06, 0.025, 1 } -- Reserved for future errors; never used by normal states.
 }
 
 local function state()
@@ -12,18 +12,41 @@ local function state()
 	return storage.train_status_lamps
 end
 
-local function set_color(record, color)
-	if record.color == color then return end
+local function set_display(record, color, blinking)
+	local blink_interval = blinking and 30 or 0
+	if record.color == color and record.blink_interval == blink_interval then return end
 	for _, object in ipairs(record.objects) do
-		if object.valid then object.color = colors[color] end
+		if object.valid then
+			object.color = colors[color]
+			object.blink_interval = blink_interval
+		end
 	end
 	record.color = color
+	record.blink_interval = blink_interval
 end
 
-local function refresh(record)
-	local adjacent = MergingChests.train_transfer.has_adjacent_wagon(record.entity)
+local function refresh_record(record)
+	local transfer = MergingChests.train_transfer
+	if transfer.get_mode(record.entity) == 'off' then
+		-- Do not carry activity across disabling/re-enabling direct transfer.
+		record.last_transfer_tick = nil
+		set_display(record, 'yellow', false)
+		return
+	end
 	local active = record.last_transfer_tick and game.tick - record.last_transfer_tick < interval
-	set_color(record, adjacent and (active and 'red' or 'yellow') or 'green')
+	if active then
+		set_display(record, 'green', true)
+		return
+	end
+	local adjacent = transfer.has_adjacent_wagon(record.entity)
+	set_display(record, adjacent and 'yellow' or 'green', adjacent)
+end
+
+function lamps.refresh(entity)
+	if not entity or not entity.valid then return end
+	local data = storage.train_status_lamps
+	local record = data and data.entities[entity.unit_number]
+	if record then refresh_record(record) end
 end
 
 local function update_handler()
@@ -61,15 +84,15 @@ function lamps.register(entity)
 			sprite = 'train-container-status-lamp-'..(vertical and 'high' or 'wide'),
 			target = { entity = entity, offset = vertical and { 0, position } or { position, 0 } },
 			surface = entity.surface,
-			tint = colors.green,
-			blink_interval = 30,
+			tint = colors.yellow,
+			blink_interval = 0,
 			render_layer = 'higher-object-above',
 		}))
 	end
 	data.entities[entity.unit_number] = record
 	data.registrations[record.registration] = entity.unit_number
 	data.count = data.count + 1
-	refresh(record)
+	refresh_record(record)
 	update_handler()
 end
 
@@ -78,7 +101,7 @@ function lamps.note_transfer(entity)
 	local record = data and data.entities[entity.unit_number]
 	if record then
 		record.last_transfer_tick = game.tick
-		set_color(record, 'red')
+		set_display(record, 'green', true)
 	end
 end
 
@@ -91,7 +114,7 @@ function lamps.update()
 			local intact = true
 			for _, object in ipairs(record.objects) do intact = intact and object.valid end
 			if intact then
-				refresh(record)
+				refresh_record(record)
 			else
 				-- The engine destroys entity-targeted drawings on surface changes.
 				table.insert(invalid, unit_number)

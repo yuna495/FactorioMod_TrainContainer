@@ -86,9 +86,21 @@ This is only a prototype appearance choice, independent of nearby trains and loa
 
 ### Status lamps
 
-The existing round beacon on each J module blinks using engine-managed rendering, with a blink interval of 30 ticks. All beacons on one container share its status: green when no cargo wagon is adjacent, yellow when an adjacent cargo wagon is present without recent item movement, and red after successful direct loading or unloading. Yellow also applies when loading mode is off, the train is moving or stopped away from a station, the filter excludes all items, or the destination is full. Adjacency uses the same long-side geometric checks as direct loading, independent of the train state and loading mode.
+The existing round beacon on each J module uses engine-managed rendering. All beacons on one container share the following status:
 
-A successful transfer sets red immediately and records its tick. Red is held until the next status update after 60 ticks without successful movement (at most 120 ticks after the last transfer); it is not inferred from merely enabling a loading mode. Lamp status is refreshed every 60 ticks only for registered containers with J modules. Blinking itself does not require Lua tick updates. This visual status sampling is independent of inventory-transfer scheduling and does not transfer items. No global per-tick scan is added.
+| Condition | Color | Display |
+| --- | --- | --- |
+| Loading mode `off` | Yellow | Steady |
+| Loading mode `load`/`unload`, no adjacent cargo wagon and no recent item movement | Green | Steady (ready/waiting) |
+| Loading enabled, adjacent cargo wagon, no recent item movement | Yellow | Blinking |
+| Recent successful direct loading or unloading | Green | Blinking |
+| Future error state (not currently generated) | Red | Reserved |
+
+Loading mode is checked first. When it is `off`, lamp refresh sets steady yellow and returns without any wagon adjacency scan. Disabling loading clears the lamp's recent-transfer timestamp, so re-enabling it cannot revive stale activity. With loading enabled, adjacency uses the same long-side geometric checks as direct loading, independently of train state. A moving train, a train stopped away from a station, an empty source, a full destination, or a filter excluding all items is yellow blinking when adjacent and idle; these are not treated as errors.
+
+A successful transfer calls `status_lamps.note_transfer(container)`, immediately sets green blinking, and records its tick. Recent activity takes priority while loading is enabled and the last transfer was less than 60 ticks ago. Once activity expires, the next refresh returns to yellow blinking if a wagon is adjacent, or steady green otherwise. Lamp status is refreshed every 60 ticks only for registered containers with J modules, so timeout is displayed less than 120 ticks after the last movement. `train_transfer.set_mode()` also calls `status_lamps.refresh(entity)` immediately after a mode change, without waiting for that periodic refresh.
+
+State changes update the existing rendering object's `color` and `blink_interval` properties: 0 for steady display, 30 for 30 ticks lit followed by 30 ticks unlit. Unchanged states do not rewrite rendering properties, and blinking does not require Lua tick updates or object recreation. This visual status sampling is independent of inventory-transfer scheduling and does not transfer items. No global per-tick scan is added. Red is not used for normal loading/unloading.
 
 The registry in `storage.train_status_lamps` holds container references, rendering objects, destruction registrations, and the most recent transfer tick. Build/revive/clone events register lamps, destruction removes them, save/load preserves them, and initialization/configuration changes rebuild the registry once for existing entities. The periodic lamp handler is disabled when the registry is empty. Rendering targets follow their container; all players see the same status. Ghosts are not animated. The 6-tile T6 has no J beacon, and the yellow end-cap tabs remain non-emissive safety markings. No lamp is added to the ordinary chest graphics.
 
