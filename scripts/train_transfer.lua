@@ -1,4 +1,5 @@
 local train_transfer = {}
+local status_lamps = require('scripts.train_status_lamps')
 MergingChests.train_transfer = train_transfer
 train_transfer.modes = {
   off = 'off',
@@ -675,6 +676,17 @@ local function refresh_trains_near_container(container)
     start_train_transfer(train)
   end
 end
+function train_transfer.has_adjacent_wagon(entity)
+  if not is_direct_transfer_train_container(entity) then return false end
+  for _, wagon in ipairs(entity.surface.find_entities_filtered({
+    area = expand_box(get_transfer_box(entity), train_transfer.wagon_search_radius),
+    type = 'cargo-wagon',
+  })) do
+    if is_adjacent_to_long_side(entity, wagon) then return true end
+  end
+  return false
+end
+
 function train_transfer.get_status(entity)
   if entity == nil or not entity.valid or not is_direct_transfer_train_container(entity) then
     return 'unsupported', 0
@@ -853,6 +865,7 @@ local function process_group(group)
 
     group.retry_after_tick = nil
     remaining = remaining - moved
+    status_lamps.note_transfer(group.container)
   end
   return true
 end
@@ -899,6 +912,7 @@ local function on_train_created(event)
   end
 end
 local function on_object_destroyed(event)
+  status_lamps.on_object_destroyed(event)
   local data = ensure_storage()
   local record = data.destroyed_registrations[event.registration_number]
   if record == nil then
@@ -957,16 +971,19 @@ local function rebuild_all_cybersyn2_shims()
 end
 script.on_init(function()
   migrate_storage()
+  status_lamps.rebuild()
   update_nth_tick_handler()
 end)
 script.on_configuration_changed(function()
   migrate_storage()
+  status_lamps.rebuild()
   cleanup_invalid_cybersyn2_shims()
   rebuild_all_cybersyn2_shims()
   cleanup_invalid_active_trains()
   update_nth_tick_handler()
 end)
 script.on_load(function()
+  status_lamps.on_load()
   local data = storage.train_transfer
   set_nth_tick_handler(data ~= nil and (data.active_transfer_count or 0) > 0)
 end)

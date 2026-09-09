@@ -79,6 +79,15 @@ MergingChests.steel_chest_segments = {
 -- Preserve the ordinary segments; sprite_generation selects these modules
 -- only for one-tile-wide lengths 7k - 1, for both steel and infinity entities.
 MergingChests.train_loading_segments = require('scripts.train_loading_segments')
+for _, orientation in ipairs({ 'wide', 'high' }) do
+	data:extend({ {
+		type = 'sprite',
+		name = 'train-container-status-lamp-'..orientation,
+		filename = graphics_path..'/train-loading/'..orientation..'-lamp.png',
+		width = 288, height = 288, scale = 1 / 3,
+		draw_as_glow = true
+	} })
+end
 MergingChests.steel_chest_segments.wide_segments.train_loading = MergingChests.train_loading_segments.wide
 MergingChests.steel_chest_segments.high_segments.train_loading = MergingChests.train_loading_segments.high
 

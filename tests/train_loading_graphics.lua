@@ -19,6 +19,7 @@ MergingChests = {
 	end
 }
 data = { raw = { ['selection-tool'] = { selector = { select = { entity_filters = {} } } }, inserter = {} } }
+function data:extend() end
 dofile('data.lua')
 assert(#registrations == 2, 'Steel and infinity must both be registered')
 local create = require('scripts.sprite_generation')
@@ -53,7 +54,7 @@ for _, registration in ipairs(registrations) do
 				assert(covered == length)
 				for i, layer in ipairs(layers) do
 					assert(layer.draw_as_shadow == (i <= #layers / 2))
-					assert(layer.scale == .5)
+					assert(layer.scale == 1 / 3)
 					assert(layer.filename:find('/train%-loading/'))
 					assert(layer.shift[vertical and 1 or 2] == 0)
 					local file = assert(io.open(layer.filename:gsub('__TrainContainer__/', ''), 'rb'))

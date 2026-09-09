@@ -4,13 +4,13 @@ local path = '__TrainContainer__/graphics/entity/train-container/train-loading/'
 
 local function orientation(name, vertical)
 	local modules = {}
-	for module, length in pairs({ t6 = 512, j = 192, l = 160, r = 160 }) do
+	for module, length in pairs({ t6 = 768, j = 288, l = 240, r = 240 }) do
 		modules[module] = {
 			filename = path..name..'-'..module..'.png',
 			shadow_filename = path..name..'-'..module..'-shadow.png',
-			width = vertical and 192 or length,
-			height = vertical and length or 192,
-			scale = 0.5
+			width = vertical and 288 or length,
+			height = vertical and length or 288,
+			scale = 1 / 3
 		}
 	end
 	return modules

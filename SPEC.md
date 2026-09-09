@@ -74,15 +74,23 @@ Newly created blueprints no longer require TrainContainer-specific rotation for 
 
 ## Train-adjacent Graphics
 
-Normal steel and editor infinity TrainContainers use dedicated static train-loading graphics when their one-tile-wide footprint has length `N = 7k - 1`, for integer `k >= 1`. With the current maximum length of 83, these lengths are 6, 13, 20, 27, 34, 41, 48, 55, 62, 69, 76, and 83, in both orientations. All other lengths retain the existing wide-chest/high-chest graphics.
+Normal steel and editor infinity TrainContainers use dedicated train-loading graphics when their one-tile-wide footprint has length `N = 7k - 1`, for integer `k >= 1`. With the current maximum length of 83, these lengths are 6, 13, 20, 27, 34, 41, 48, 55, 62, 69, 76, and 83, in both orientations. All other lengths retain the existing wide-chest/high-chest graphics.
 
 The dedicated design follows `列車隣接コンテナデザイン.png`: a narrow industrial container with a relatively flat metal lid, recessed side rollers/transfer openings, reinforcement, and restrained yellow/black warning marks. Mechanical details remain inside the one-tile ground footprint. Both long sides have transfer details because direct loading supports either side.
 
-Graphics are assembled from reusable T6 (six tiles), J (one tile), and L/R end-cap modules: `L + T6 + (J + T6) * (k - 1) + R`. End caps overlay the ends inside the footprint and add no length. Horizontal and vertical modules are rendered separately with transparent body and shadow layers, at 64 source pixels per tile and sprite scale 0.5. The data-stage sprite generator places these modules as layers; no length-specific full sprite is required. Editable Blender sources separate T6, J, end caps, and render setup.
+Graphics are assembled from reusable T6 (six tiles), J (one tile), and L/R end-cap modules: `L + T6 + (J + T6) * (k - 1) + R`. End caps overlay the ends inside the footprint and add no length. Horizontal and vertical modules are rendered separately with transparent body and shadow layers, at 96 source pixels per tile and sprite scale 1/3 (1.5 times the original source resolution, with unchanged in-game size). The data-stage sprite generator places these modules as layers; no length-specific full sprite is required. Editable Blender sources separate T6, J, end caps, and render setup.
 
 Materials should read as worn metal alongside the vanilla steel chest: contrasted metallic highlights, directional abrasion, uneven roughness, dark oily recesses, and restrained warm oxidation. Avoid uniformly colored, smooth plastic-looking panels. These surface details are baked into the static module sprites.
 
-This is only a prototype appearance choice, independent of nearby trains and loading mode. It does not add animation, entities, recipes, runtime state, or transfer restrictions. Prototype names, collision/selection boxes, capacities, and existing save/blueprint behavior are unchanged.
+This is only a prototype appearance choice, independent of nearby trains and loading mode. It does not add entities, recipes, or transfer restrictions. Prototype names, collision/selection boxes, capacities, and existing save/blueprint behavior are unchanged.
+
+### Status lamps
+
+The existing round beacon on each J module blinks using engine-managed rendering, with a blink interval of 30 ticks. All beacons on one container share its status: green when no cargo wagon is adjacent, yellow when an adjacent cargo wagon is present without recent item movement, and red after successful direct loading or unloading. Yellow also applies when loading mode is off, the train is moving or stopped away from a station, the filter excludes all items, or the destination is full. Adjacency uses the same long-side geometric checks as direct loading, independent of the train state and loading mode.
+
+A successful transfer sets red immediately and records its tick. Red is held until the next status update after 60 ticks without successful movement (at most 120 ticks after the last transfer); it is not inferred from merely enabling a loading mode. Lamp status is refreshed every 60 ticks only for registered containers with J modules. Blinking itself does not require Lua tick updates. This visual status sampling is independent of inventory-transfer scheduling and does not transfer items. No global per-tick scan is added.
+
+The registry in `storage.train_status_lamps` holds container references, rendering objects, destruction registrations, and the most recent transfer tick. Build/revive/clone events register lamps, destruction removes them, save/load preserves them, and initialization/configuration changes rebuild the registry once for existing entities. The periodic lamp handler is disabled when the registry is empty. Rendering targets follow their container; all players see the same status. Ghosts are not animated. The 6-tile T6 has no J beacon, and the yellow end-cap tabs remain non-emissive safety markings. No lamp is added to the ordinary chest graphics.
 
 ## Direct Train Loading
 

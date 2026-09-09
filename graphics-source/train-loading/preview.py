@@ -26,6 +26,9 @@ for (orient, length), layers in groups.items():
         assert sprite.size == (width, height), filename
         bbox = sprite.getchannel('A').getbbox()
         assert bbox and bbox[0] > 0 and bbox[1] > 0 and bbox[2] < width and bbox[3] < height, ('clipped', filename, bbox)
+        # Compose denser source art at the established 64px QA scale.
+        width, height = round(width * 2 / 3), round(height * 2 / 3)
+        sprite = sprite.resize((width, height), Image.Resampling.LANCZOS)
         if kind == 'shadow':
             sprite.putalpha(sprite.getchannel('A').point(lambda a: round(a * .35)))
         canvas.alpha_composite(sprite, (round(w / 2 + x * 64 - width / 2), round(h / 2 + y * 64 - height / 2)))
@@ -36,7 +39,7 @@ draw = ImageDraw.Draw(sheet)
 draw.text((28, 22), 'TRAIN CONTAINER / T6 + J + END CAPS', fill=(225, 215, 180))
 for i, length in enumerate((6, 13, 20)):
     im = Image.open(ROOT / f'graphics-source/train-loading/preview-wide-{length}.png')
-    draw.text((28, 65 + i * 185), f'{length} x 1 / 64 source pixels per tile', fill=(225, 215, 180))
+    draw.text((28, 65 + i * 185), f'{length} x 1 / 64px preview / 96px source', fill=(225, 215, 180))
     sheet.paste(im, (24, 85 + i * 185))
 for i, length in enumerate((6, 13, 20)):
     im = Image.open(ROOT / f'graphics-source/train-loading/preview-high-{length}.png')

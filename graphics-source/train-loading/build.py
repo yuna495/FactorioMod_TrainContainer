@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 OUTPUT = ROOT / 'graphics/entity/train-container/train-loading'
 OUTPUT.mkdir(parents=True, exist_ok=True)
-PPU = 64
+PPU = 96
 
 
 def material(name, color, metal=0.0, roughness=0.6):
@@ -179,7 +179,7 @@ for side in (-1, 1):
         box('J reinforcement strap', (x, side * .42, .40), (.09, .08, .60), steel)
         box('J warning tab', (x, side * .40, .72), (.085, .14, .04), yellow, .006)
 cylinder('J amber status beacon base', (0, .12, .95), .075, .035, dark)
-cylinder('J amber status beacon', (0, .12, 1.0), .049, .09, yellow)
+cylinder('J status beacon lens', (0, .12, 1.0), .049, .09, dark)
 
 for name, sign in (('L', -1), ('R', 1)):
     active_module = modules[name]
@@ -246,17 +246,39 @@ def copy_module(scene, module, transform):
 
 
 # The game uses square tiles in screen coordinates. Compensate the 45-degree
-# camera foreshortening after orientation, so both axes advance exactly 64 px.
+# camera foreshortening after orientation, so both axes advance exactly 96 px.
 projection = Matrix.Diagonal((1, math.sqrt(2), 1, 1))
 render_jobs = []
 for orientation, angle in (('wide', 0), ('high', -math.pi / 2)):
-    for module, long_pixels in (('T6', 512), ('J', 192), ('L', 160), ('R', 160)):
-        dims = (long_pixels, 192) if orientation == 'wide' else (192, long_pixels)
+    for module, long_pixels in (('T6', 768), ('J', 288), ('L', 240), ('R', 240)):
+        dims = (long_pixels, 288) if orientation == 'wide' else (288, long_pixels)
         name = orientation + '-' + module.lower()
         scene = setup_scene(name, *dims)
         objects = copy_module(scene, module, projection @ Matrix.Rotation(angle, 4, 'Z'))
         scene.render.filepath = str(OUTPUT / (name + '.png'))
         render_jobs.append(scene)
+        if module == 'J':
+            # Render only the existing lens with white emission. Runtime tint
+            # supplies green/yellow/red; ground origin matches the J sprite.
+            lamp_scene = setup_scene(orientation + '-lamp', *dims)
+            emission_mat = bpy.data.materials.get('Status lamp white emission')
+            if emission_mat is None:
+                emission_mat = bpy.data.materials.new('Status lamp white emission')
+                emission_mat.use_nodes = True
+                lamp_nodes = emission_mat.node_tree.nodes
+                lamp_nodes.clear()
+                lamp_output = lamp_nodes.new('ShaderNodeOutputMaterial')
+                lamp_emission = lamp_nodes.new('ShaderNodeEmission')
+                lamp_emission.inputs[0].default_value = (1, 1, 1, 1)
+                emission_mat.node_tree.links.new(lamp_emission.outputs[0], lamp_output.inputs[0])
+            lens_source = next(obj for obj in objects if obj.name.startswith('J status beacon lens'))
+            lens = lens_source.copy()
+            lens.data = lens_source.data.copy()
+            lens.data.materials.clear()
+            lens.data.materials.append(emission_mat)
+            lamp_scene.collection.objects.link(lens)
+            lamp_scene.render.filepath = str(OUTPUT / (orientation + '-lamp.png'))
+            render_jobs.append(lamp_scene)
         # Project the actual evaluated mesh onto the ground along the sun ray.
         # A separate opaque silhouette is used; opacity is applied once by the
         # Lua tint, preventing dark self-overlap within a module.
