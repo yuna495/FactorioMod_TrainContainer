@@ -72,6 +72,18 @@ Entity numbers for blueprint expansion are deterministic. Unchanged blueprint en
 
 Newly created blueprints no longer require TrainContainer-specific rotation for normal steel TrainContainers because they contain steel chest rows or columns. The custom blueprint rotation handler remains for compatibility with older blueprints that still contain TrainContainer prototype names.
 
+## Train-adjacent Graphics
+
+Normal steel and editor infinity TrainContainers use dedicated static train-loading graphics when their one-tile-wide footprint has length `N = 7k - 1`, for integer `k >= 1`. With the current maximum length of 83, these lengths are 6, 13, 20, 27, 34, 41, 48, 55, 62, 69, 76, and 83, in both orientations. All other lengths retain the existing wide-chest/high-chest graphics.
+
+The dedicated design follows `列車隣接コンテナデザイン.png`: a narrow industrial container with a relatively flat metal lid, recessed side rollers/transfer openings, reinforcement, and restrained yellow/black warning marks. Mechanical details remain inside the one-tile ground footprint. Both long sides have transfer details because direct loading supports either side.
+
+Graphics are assembled from reusable T6 (six tiles), J (one tile), and L/R end-cap modules: `L + T6 + (J + T6) * (k - 1) + R`. End caps overlay the ends inside the footprint and add no length. Horizontal and vertical modules are rendered separately with transparent body and shadow layers, at 64 source pixels per tile and sprite scale 0.5. The data-stage sprite generator places these modules as layers; no length-specific full sprite is required. Editable Blender sources separate T6, J, end caps, and render setup.
+
+Materials should read as worn metal alongside the vanilla steel chest: contrasted metallic highlights, directional abrasion, uneven roughness, dark oily recesses, and restrained warm oxidation. Avoid uniformly colored, smooth plastic-looking panels. These surface details are baked into the static module sprites.
+
+This is only a prototype appearance choice, independent of nearby trains and loading mode. It does not add animation, entities, recipes, runtime state, or transfer restrictions. Prototype names, collision/selection boxes, capacities, and existing save/blueprint behavior are unchanged.
+
 ## Direct Train Loading
 
 Normal steel TrainContainers and editor-only infinity TrainContainers support direct item transfer with adjacent `cargo-wagon` type entities without inserters, including cargo wagons added by other mods. Infinity TrainContainers use the same runtime mode, GUI, wagon search, and transfer behavior as steel TrainContainers.

@@ -31,6 +31,7 @@ require('scripts.math_utils')
 
 --- @alias entity_sprite
 --- | { entity: sprite_definition, shadow?: sprite_definition }
+--- | { train_loading?: table }
 
 --- @alias segments_data
 --- | { wide_segments?: entity_sprite }
@@ -165,8 +166,53 @@ end
 
 --- @param width number
 --- @param height number
+--- @param modules table
+local function create_train_loading_sprite(width, height, modules)
+	local vertical = width == 1
+	local length = math.max(width, height)
+	local count = (length + 1) / 7
+	local placements = {}
+	for index = 0, count - 1 do
+		-- Centers measured from the footprint edge: T6 spans [7i, 7i+6].
+		table.insert(placements, { module = modules.t6, position = -length / 2 + index * 7 + 3 })
+		if index < count - 1 then
+			table.insert(placements, { module = modules.j, position = -length / 2 + index * 7 + 6.5 })
+		end
+	end
+	-- Covers fit inside the first/last 0.24 tiles rather than adding two tiles.
+	table.insert(placements, { module = modules.l, position = -length / 2 + 0.12 })
+	table.insert(placements, { module = modules.r, position = length / 2 - 0.12 })
+
+	local layers = {}
+	-- All shadows precede all body layers, including neighboring modules.
+	for _, shadow in ipairs({ true, false }) do
+		for _, placement in ipairs(placements) do
+			local module = placement.module
+			table.insert(layers, {
+				filename = shadow and module.shadow_filename or module.filename,
+				width = module.width,
+				height = module.height,
+				scale = module.scale,
+				shift = vertical and { 0, placement.position } or { placement.position, 0 },
+				priority = 'medium',
+				draw_as_shadow = shadow,
+				tint = shadow and { 0, 0, 0, 0.35 } or nil
+			})
+		end
+	end
+	return layers
+end
+
+--- @param width number
+--- @param height number
 --- @param segments entity_sprite
 local function create_sprite(width, height, segments)
+	local length = math.max(width, height)
+	if segments.train_loading and math.min(width, height) == 1
+		and length >= 6 and (length + 1) % 7 == 0 then
+		return create_train_loading_sprite(width, height, segments.train_loading)
+	end
+
 	local sprite_layers = { }
 
 	create_entity_sprite(width, height, segments.entity, sprite_layers)
