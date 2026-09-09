@@ -4,6 +4,8 @@ local frame_name = MergingChests.prefix_with_modname('direct-transfer-frame')
 local dropdown_name = MergingChests.prefix_with_modname('direct-transfer-mode')
 local filter_flow_name = MergingChests.prefix_with_modname('direct-transfer-filter-flow')
 local filter_name = MergingChests.prefix_with_modname('direct-transfer-filter')
+local filter_mode_name = MergingChests.prefix_with_modname('direct-transfer-filter-mode')
+local filter_slots_name = MergingChests.prefix_with_modname('direct-transfer-filter-slots')
 local status_label_name = MergingChests.prefix_with_modname('direct-transfer-status')
 local search_area_color = { r = 1, g = 0.9, b = 0, a = 0.22 }
 
@@ -41,7 +43,7 @@ local function get_status_caption(entity)
 end
 
 local function update_status(player, entity)
-	local frame = player.gui.left[frame_name]
+	local frame = player.gui.relative[frame_name]
 	if frame == nil then
 		return
 	end
@@ -79,22 +81,6 @@ local function destroy_search_area(player_state)
 	player_state.search_area_render_objects = nil
 end
 
-local function save_filter_from_gui(player)
-	local data = storage.train_transfer
-	local player_state = data and data.players and data.players[player.index]
-	local entity = player_state and player_state.opened_entity
-	if entity == nil or not entity.valid or entity.unit_number ~= player_state.opened_unit_number then
-		return
-	end
-
-	local frame = player.gui.left[frame_name]
-	local filter_flow = frame and frame[filter_flow_name]
-	local filter_button = filter_flow and filter_flow[filter_name]
-	if filter_button and filter_button.valid then
-		train_transfer.set_filter(entity, filter_button.elem_value)
-	end
-end
-
 local function draw_search_area(player, entity)
 	local player_state = get_player_state(player.index)
 	destroy_search_area(player_state)
@@ -120,9 +106,10 @@ local function draw_search_area(player, entity)
 end
 
 local function destroy_gui(player)
-	save_filter_from_gui(player)
-
-	local frame = player.gui.left[frame_name]
+	-- Remove panels left in saves made before relative anchoring.
+	local legacy_frame = player.gui.left[frame_name]
+	if legacy_frame then legacy_frame.destroy() end
+	local frame = player.gui.relative[frame_name]
 	if frame then
 		frame.destroy()
 	end
@@ -139,9 +126,14 @@ local function create_gui(player, entity)
 
 	local mode = train_transfer.get_mode(entity)
 
-	local frame = player.gui.left.add({
+	local frame = player.gui.relative.add({
 		type = 'frame',
 		name = frame_name,
+		anchor = {
+			gui = defines.relative_gui_type.container_gui,
+			position = defines.relative_gui_position.left,
+			name = entity.name,
+		},
 		direction = 'vertical',
 		caption = { 'gui.'..MergingChests.prefix_with_modname('direct-transfer') },
 	})
@@ -164,21 +156,30 @@ local function create_gui(player, entity)
 		},
 		selected_index = mode_to_index[mode] or 1,
 	})
+	local configuration = train_transfer.get_filter_configuration(entity)
 	local filter_flow = frame.add({
-		type = 'flow',
-		name = filter_flow_name,
-		direction = 'horizontal',
+		type = 'frame', name = filter_flow_name, direction = 'vertical',
+		style = 'inside_shallow_frame_with_padding_and_vertical_spacing',
 	})
+	filter_flow.add({ type = 'label', style = 'heading_2_label',
+		caption = { 'gui.'..MergingChests.prefix_with_modname('direct-transfer-filter') } })
 	filter_flow.add({
-		type = 'label',
-		caption = { 'gui.'..MergingChests.prefix_with_modname('direct-transfer-filter') },
+		type = 'switch', name = filter_mode_name, style = 'switch',
+		allow_none_state = false,
+		left_label_caption = { 'gui-inserter.whitelist' },
+		right_label_caption = { 'gui-inserter.blacklist' },
+		switch_state = configuration.mode == 'blacklist' and 'right' or 'left',
+		tooltip = { 'gui.'..MergingChests.prefix_with_modname('direct-transfer-filter-tooltip') },
 	})
-	filter_flow.add({
-		type = 'choose-elem-button',
-		name = filter_name,
-		elem_type = 'item-with-quality',
-		['item-with-quality'] = train_transfer.get_filter(entity),
-	})
+	local slots = filter_flow.add({ type = 'table', name = filter_slots_name,
+		column_count = train_transfer.filter_slot_count, style = 'filter_slot_table' })
+	for slot = 1, train_transfer.filter_slot_count do
+		slots.add({
+			type = 'choose-elem-button', name = filter_name..'-'..slot,
+			style = 'slot_button', elem_type = 'item-with-quality',
+			['item-with-quality'] = configuration.slots[slot],
+		})
+	end
 	frame.add({
 		type = 'label',
 		name = status_label_name,
@@ -246,22 +247,66 @@ local function on_gui_selection_state_changed(event)
 	end
 end
 
+-- Synchronize other viewers without ever saving a stale whole GUI snapshot.
+local function sync_filter_guis(entity)
+	local configuration = train_transfer.get_filter_configuration(entity)
+	for player_index, player_state in pairs(storage.train_transfer.players or {}) do
+		if player_state.opened_unit_number == entity.unit_number then
+			local player = game.get_player(player_index)
+			local frame = player and player.gui.relative[frame_name]
+			local panel = frame and frame[filter_flow_name]
+			if panel and panel[filter_slots_name] and panel[filter_mode_name] then
+				panel[filter_mode_name].switch_state = configuration.mode == 'blacklist' and 'right' or 'left'
+				for slot = 1, train_transfer.filter_slot_count do
+					panel[filter_slots_name][filter_name..'-'..slot].elem_value = configuration.slots[slot]
+				end
+				update_status(player, entity)
+			end
+		end
+	end
+end
+
+local function get_event_filter_panel(event)
+	local player = game.get_player(event.player_index)
+	local frame = player and player.gui.relative[frame_name]
+	return frame and frame[filter_flow_name]
+end
+
 local function on_gui_elem_changed(event)
 	local element = event.element
-	if element == nil or not element.valid or element.name ~= filter_name then
-		return
-	end
-
+	if not element or not element.valid then return end
 	local entity = get_opened_entity(event)
-	if entity == nil then
-		return
+	local panel = get_event_filter_panel(event)
+	local slots = panel and panel[filter_slots_name]
+	if not entity or not slots then return end
+	for slot = 1, train_transfer.filter_slot_count do
+		if slots[filter_name..'-'..slot] == element then
+			train_transfer.set_filter(entity, slot, element.elem_value)
+			sync_filter_guis(entity)
+			return
+		end
 	end
+end
 
-	train_transfer.set_filter(entity, element.elem_value)
+local function on_gui_switch_state_changed(event)
+	local element = event.element
+	if not element or not element.valid then return end
+	local entity = get_opened_entity(event)
+	local panel = get_event_filter_panel(event)
+	if not entity or not panel or panel[filter_mode_name] ~= element then return end
+	train_transfer.set_filter_mode(entity, element.switch_state == 'right' and 'blacklist' or 'whitelist')
+	sync_filter_guis(entity)
+end
 
-	local player = game.get_player(event.player_index)
-	if player then
-		update_status(player, entity)
+function train_transfer.rebuild_open_guis()
+	local opened = {}
+	for player_index, player_state in pairs(storage.train_transfer.players or {}) do
+		if player_state.opened_entity and player_state.opened_entity.valid then
+			opened[#opened + 1] = { player = game.get_player(player_index), entity = player_state.opened_entity }
+		end
+	end
+	for _, entry in ipairs(opened) do
+		if entry.player then create_gui(entry.player, entry.entity) end
 	end
 end
 
@@ -287,4 +332,5 @@ script.on_event(defines.events.on_gui_opened, on_gui_opened)
 script.on_event(defines.events.on_gui_closed, on_gui_closed)
 script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)
 script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
+script.on_event(defines.events.on_gui_switch_state_changed, on_gui_switch_state_changed)
 script.on_event(defines.events.on_selected_entity_changed, on_selected_entity_changed)

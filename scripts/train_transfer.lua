@@ -1,5 +1,7 @@
 local train_transfer = {}
 local status_lamps = require('scripts.train_status_lamps')
+local filter_configuration = require('scripts.train_filter_configuration')
+train_transfer.filter_slot_count = filter_configuration.slot_count
 MergingChests.train_transfer = train_transfer
 train_transfer.modes = {
   off = 'off',
@@ -23,28 +25,22 @@ train_transfer.cybersyn2_shim_spacing = 5
 train_transfer.cybersyn2_shim_rail_search_width = 1.5
 local epsilon = 0.05
 local retry_delay_ticks = 60
-local filter_schema_version = 2
+local filter_schema_version = filter_configuration.schema_version
 local cached_train_container_names = nil
 local rail_types = { 'straight-rail', 'curved-rail-a', 'curved-rail-b', 'half-diagonal-rail' }
-local function normalize_filter(filter)
-  if type(filter) == 'string' then
-    if prototypes.item[filter] then
-      return { name = filter, quality = 'normal' }
-    end
-    return nil
-  end
-  if type(filter) ~= 'table' or filter.name == nil or prototypes.item[filter.name] == nil then
-    return nil
-  end
-  local quality = filter.quality or 'normal'
-  if prototypes.quality[quality] == nil then
-    quality = 'normal'
-  end
-  return { name = filter.name, quality = quality }
-end
 local function migrate_filters(data)
   for unit_number, filter in pairs(data.filters) do
-    data.filters[unit_number] = normalize_filter(filter)
+    data.filters[unit_number] = filter_configuration.normalize(filter)
+  end
+  -- Groups survive saves: upgrade their snapshots as well as entity settings.
+  for _, active in pairs(data.active_trains) do
+    for _, group in ipairs(active.groups or {}) do
+      if group.container and group.container.valid then
+        group.filter_configuration = filter_configuration.normalize(data.filters[group.container.unit_number])
+        group.filter = nil
+        group.retry_after_tick = nil
+      end
+    end
   end
 end
 local function ensure_storage()
@@ -387,24 +383,16 @@ function train_transfer.get_mode(entity)
   local data = ensure_storage()
   return data.modes[entity.unit_number] or train_transfer.modes.off
 end
-function train_transfer.get_filter(entity)
+function train_transfer.get_filter_configuration(entity)
   if entity == nil or not entity.valid or entity.unit_number == nil or not is_direct_transfer_train_container(entity) then
     return nil
   end
   local data = ensure_storage()
-  return data.filters[entity.unit_number]
+  return filter_configuration.normalize(data.filters[entity.unit_number])
 end
-local function filters_equal(a, b)
-  if a == nil or b == nil then
-    return a == nil and b == nil
-  end
-  return a.name == b.name and a.quality == b.quality
-end
-local function stack_matches_filter(stack, filter)
-  if filter == nil then
-    return true
-  end
-  return stack.name == filter.name and stack.quality and stack.quality.name == filter.quality
+function train_transfer.get_filter_mode(entity)
+  local configuration = train_transfer.get_filter_configuration(entity)
+  return configuration and configuration.mode or 'whitelist'
 end
 function train_transfer.get_wagon_search_area(entity)
   if entity == nil or not entity.valid or not is_direct_transfer_train_container(entity) then
@@ -581,7 +569,7 @@ local function add_wagon_to_container_group(groups_by_container, container, wago
     group = {
       container = container,
       mode = mode,
-      filter = train_transfer.get_filter(container),
+      filter_configuration = train_transfer.get_filter_configuration(container),
       wagons = {},
       wagons_by_unit_number = {},
       next_wagon = 1,
@@ -753,19 +741,32 @@ function train_transfer.set_mode(entity, mode)
   status_lamps.refresh(entity)
   return true
 end
-function train_transfer.set_filter(entity, filter)
-  filter = normalize_filter(filter)
+local function set_filter_configuration(entity, configuration)
   if entity == nil or not entity.valid or entity.unit_number == nil or not is_direct_transfer_train_container(entity) then
     return false
   end
   local data = ensure_storage()
-  if filters_equal(data.filters[entity.unit_number], filter) then
+  if filter_configuration.equal(filter_configuration.normalize(data.filters[entity.unit_number]), configuration) then
     return true
   end
-  data.filters[entity.unit_number] = filter
+  data.filters[entity.unit_number] = configuration
   remove_container_from_active_trains(data, entity.unit_number)
   refresh_trains_near_container(entity)
   return true
+end
+function train_transfer.set_filter(entity, slot, filter)
+  if type(slot) ~= 'number' or slot % 1 ~= 0 or slot < 1 or slot > train_transfer.filter_slot_count then return false end
+  local configuration = train_transfer.get_filter_configuration(entity)
+  if not configuration then return false end
+  configuration.slots[slot] = filter_configuration.normalize_slot(filter)
+  return set_filter_configuration(entity, configuration)
+end
+function train_transfer.set_filter_mode(entity, mode)
+  if mode ~= 'whitelist' and mode ~= 'blacklist' then return false end
+  local configuration = train_transfer.get_filter_configuration(entity)
+  if not configuration then return false end
+  configuration.mode = mode
+  return set_filter_configuration(entity, configuration)
 end
 local function get_transferable_slot_count(inventory)
   if inventory.supports_bar and inventory.supports_bar() then
@@ -801,7 +802,7 @@ local function transfer_from_inventory(source_inventory, target_inventory, group
   for offset = 0, #source_inventory - 1 do
     local index = ((start_slot + offset - 2) % #source_inventory) + 1
     local source_stack = source_inventory[index]
-    if source_stack.valid_for_read and stack_matches_filter(source_stack, group.filter) then
+    if source_stack.valid_for_read and filter_configuration.matches(source_stack, group.filter_configuration) then
       local moved = transfer_to_inventory(source_stack, target_inventory, limit)
       if moved > 0 then
         if source_stack.valid_for_read then
@@ -982,6 +983,7 @@ script.on_configuration_changed(function()
   rebuild_all_cybersyn2_shims()
   cleanup_invalid_active_trains()
   update_nth_tick_handler()
+  if train_transfer.rebuild_open_guis then train_transfer.rebuild_open_guis() end
 end)
 script.on_load(function()
   status_lamps.on_load()
