@@ -2,11 +2,12 @@
 local configuration = require('scripts.train_filter_configuration')
 prototypes = { item = { iron = {}, copper = {} }, quality = { normal = {}, rare = {} } }
 storage = { train_transfer = { players = {} } }
-local events = {}
+local events, periodic = {}, {}
 defines = { events = {}, relative_gui_type = { container_gui = 1 }, relative_gui_position = { left = 1 } }
 for i, name in ipairs({ 'on_gui_opened', 'on_gui_closed', 'on_gui_selection_state_changed',
-	'on_gui_elem_changed', 'on_gui_switch_state_changed', 'on_selected_entity_changed' }) do defines.events[name] = i end
-script = { on_event = function(event, handler) events[event] = handler end }
+	'on_gui_elem_changed', 'on_gui_switch_state_changed', 'on_selected_entity_changed', 'on_gui_checked_state_changed' }) do defines.events[name] = i end
+script = { on_event = function(event, handler) events[event] = handler end,
+  on_nth_tick = function(tick, handler) periodic[tick] = handler end }
 local function node(options, parent)
 	local element = { valid = true, style = {}, children = {}, parent = parent }
 	for k, v in pairs(options) do if k ~= 'style' then element[k] = v end end
@@ -30,7 +31,10 @@ for i = 1, 2 do players[i] = { index = i, gui = { left = node({}), relative = no
 game = { get_player = function(index) return players[index] end }
 local config = configuration.normalize(nil)
 local writes = 0
+local connected = false
 local transfer = {
+	has_green_connection = function() return connected end,
+	set_circuit_set_filters = function(_, value) config.circuit_set_filters = value; writes = writes + 1 end,
 	modes = { off = 'off', load = 'load', unload = 'unload' }, filter_slot_count = 5,
 	get_mode = function() return 'off' end,
 	get_status = function() return 'off', 0 end,
@@ -83,8 +87,25 @@ emit('on_gui_elem_changed', 1, old_slot)
 assert(writes == before, 'Old invalid GUI event mutated configuration')
 transfer.rebuild_open_guis()
 assert(slot(2, 3).elem_value.name == 'copper' and writes == before)
+local function circuit(index) return players[index].gui.relative[prefix..'frame'][prefix..'circuit'] end
+local function toggle(index) return circuit(index)[prefix..'circuit-filters'] end
+assert(not toggle(1).enabled and slot(1, 3).enabled and periodic[15])
+connected = true; periodic[15]()
+assert(toggle(1).enabled)
+toggle(1).state = true; emit('on_gui_checked_state_changed', 1, toggle(1))
+assert(config.circuit_set_filters and toggle(2).state and not slot(1, 3).enabled)
+assert(not panel(2)[prefix..'filter-mode'].enabled and config.slots[3].name == 'copper')
+connected = false; periodic[15]()
+assert(not toggle(1).enabled and toggle(1).state and slot(1, 3).enabled)
+connected = true; periodic[15]()
+toggle(2).state = false; emit('on_gui_checked_state_changed', 2, toggle(2))
+assert(not config.circuit_set_filters and slot(1, 3).enabled)
+assert(slot(1, 3).elem_value.name == 'copper')
+before = writes
 entity.valid = false
 emit('on_gui_elem_changed', 1, slot(1, 3))
 emit('on_gui_closed', 1)
 assert(writes == before)
+periodic[15]()
+assert(periodic[15] == nil, 'No open GUI should leave a periodic handler')
 print('PASS: standard five-slot/switch layout, immediate edits while OFF, sparse/quality values, two-player sync, close/reopen and stale-event safety.')

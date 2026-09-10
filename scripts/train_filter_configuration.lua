@@ -1,5 +1,5 @@
 -- Plain per-entity filter data. Iterate numeric slots explicitly: holes matter.
-local filters = { slot_count = 5, schema_version = 3 }
+local filters = { slot_count = 5, schema_version = 4 }
 
 function filters.normalize_slot(value)
 	if type(value) == 'string' then value = { name = value, quality = 'normal' } end
@@ -10,10 +10,11 @@ function filters.normalize_slot(value)
 end
 
 function filters.normalize(value)
-	local result = { mode = 'whitelist', slots = {} }
+	local result = { mode = 'whitelist', slots = {}, circuit_set_filters = false }
 	if type(value) == 'string' or (type(value) == 'table' and value.name) then
 		result.slots[1] = filters.normalize_slot(value)
 	elseif type(value) == 'table' then
+		result.circuit_set_filters = value.circuit_set_filters == true
 		result.mode = value.mode == 'blacklist' and 'blacklist' or 'whitelist'
 		if type(value.slots) == 'table' then
 			for slot = 1, filters.slot_count do result.slots[slot] = filters.normalize_slot(value.slots[slot]) end
@@ -23,7 +24,7 @@ function filters.normalize(value)
 end
 
 function filters.equal(a, b)
-	if a.mode ~= b.mode then return false end
+	if a.mode ~= b.mode or a.circuit_set_filters ~= b.circuit_set_filters then return false end
 	for slot = 1, filters.slot_count do
 		local left, right = a.slots[slot], b.slots[slot]
 		if left == nil or right == nil then

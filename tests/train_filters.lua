@@ -27,7 +27,7 @@ assert(configuration.normalize(filter('missing')).slots[1] == nil)
 assert(configuration.normalize(filter('iron', 'missing')).slots[1].quality == 'normal')
 
 local events, lifecycle, periodic = {}, {}, {}
-defines = { events = {}, train_state = { wait_station = 1 }, inventory = { chest = 1, cargo_wagon = 2 } }
+defines = { events = {}, train_state = { wait_station = 1 }, inventory = { chest = 1, cargo_wagon = 2 }, wire_connector_id = { circuit_green = 2 } }
 for i, name in ipairs({ 'on_train_changed_state', 'on_train_created', 'on_object_destroyed', 'on_surface_deleted', 'on_surface_cleared' }) do
 	defines.events[name] = i
 end
@@ -44,6 +44,9 @@ script = {
 	end
 }
 local successful_notifications = 0
+package.loaded['scripts.train_request_inputs'] = {
+  rebuild = function() end, get = function(entity) return entity.request_input end
+}
 package.loaded['scripts.train_status_lamps'] = {
 	rebuild = function() end, on_load = function() end, on_object_destroyed = function() end,
 	refresh = function() end, note_transfer = function() successful_notifications = successful_notifications + 1 end
@@ -84,6 +87,20 @@ local function inventory(entries, size, options)
 		inv[i] = slot
 	end
 	inv.supports_bar = function() return true end
+	inv.get_contents = function()
+		local result, by_key = {}, {}
+		for _, s in ipairs(inv) do
+			if s.valid_for_read then
+				local key = s.name..'/'..s.quality.name
+				if not by_key[key] then
+					by_key[key] = { name = s.name, quality = s.quality.name, count = 0 }
+					result[#result + 1] = by_key[key]
+				end
+				by_key[key].count = by_key[key].count + s.count
+			end
+		end
+		return result
+	end
 	inv.get_bar = function() return options.bar or size + 1 end
 	inv.can_insert = function(source)
 		for i, slot in ipairs(inv) do
@@ -108,6 +125,7 @@ local function setup(mode, entries, destination_options, wagon_count)
 	local train = { id = 50, valid = true, state = 1, station = {}, cargo_wagons = {} }
 	local surface = {}
 	local container = { name = 'container', unit_number = 1, valid = true, position = { x = 0, y = 0 }, surface = surface,
+		get_wire_connector = function() return nil end,
 		selection_box = { left_top = { x = -6.5, y = -.5 }, right_bottom = { x = 6.5, y = .5 } },
 		get_inventory = function() return mode == 'load' and source or target end }
 	for i = 1, wagon_count or 1 do
@@ -169,7 +187,7 @@ data.filters[1] = filter('iron', 'rare'); data.filters[2] = 'copper'; data.filte
 local group = data.active_trains[50].groups[1]
 group.filter = data.filters[1]; group.filter_configuration = nil; group.retry_after_tick = 1000
 lifecycle.configuration()
-assert(data.filter_schema_version == 3 and data.filters[1].mode == 'whitelist')
+assert(data.filter_schema_version == 4 and data.filters[1].mode == 'whitelist' and data.filters[1].circuit_set_filters == false)
 assert(data.filters[1].slots[1].quality == 'rare' and data.filters[2].slots[1].quality == 'normal')
 assert(group.filter == nil and group.filter_configuration.slots[1].name == 'iron' and group.retry_after_tick == nil)
 cycle(10); assert(total(target) == 20)
@@ -192,3 +210,5 @@ c, train, source, target = setup('load', entries)
 train.state = 2; transfer.set_mode(c, 'load'); cycle(10); assert(total(target) == 0)
 assert(successful_notifications > 0)
 print('PASS: 5-slot allow/deny semantics, sparse/duplicate/quality filters, migration, group refresh, OFF/removal, both directions, safety/rate/retry/round robin.')
+return { setup = setup, inventory = inventory, total = total, cycle = cycle, transfer = transfer,
+  events = events, lifecycle = lifecycle, filter = filter }

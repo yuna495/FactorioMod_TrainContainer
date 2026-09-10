@@ -5,6 +5,7 @@ require('prototypes.custom_input')
 require('prototypes.groups')
 require('prototypes.item')
 require('prototypes.shortcuts')
+require('prototypes.train_request_input')
 
 local graphics_path = '__TrainContainer__/graphics/entity/train-container'
 

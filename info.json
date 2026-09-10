@@ -1,6 +1,6 @@
 {
   "name": "TrainContainer",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "title": "Train Container",
   "author": "yuna495",
   "description": "Merge straight rows of chests into large train-length containers with quality, circuit network, and blueprint support.",

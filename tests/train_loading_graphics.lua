@@ -7,7 +7,7 @@ local function deepcopy(value)
 end
 table.deepcopy = deepcopy
 for _, name in ipairs({ 'init', 'data_init', 'prototypes.custom_input',
-	'prototypes.groups', 'prototypes.item', 'prototypes.shortcuts' }) do
+	'prototypes.groups', 'prototypes.item', 'prototypes.shortcuts', 'prototypes.train_request_input' }) do
 	package.loaded[name] = true
 end
 local registrations = {}

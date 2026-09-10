@@ -1,6 +1,9 @@
 local train_transfer = {}
 local status_lamps = require('scripts.train_status_lamps')
 local filter_configuration = require('scripts.train_filter_configuration')
+local circuit_request = require('scripts.train_circuit_request')
+local request_inputs = require('scripts.train_request_inputs')
+train_transfer.has_green_connection = circuit_request.connected
 train_transfer.filter_slot_count = filter_configuration.slot_count
 MergingChests.train_transfer = train_transfer
 train_transfer.modes = {
@@ -523,14 +526,16 @@ local function cleanup_container(data, unit_number)
     if player_state.opened_unit_number == unit_number then
       local player = game.get_player(player_index)
       if player then
-        local frame = player.gui.left[MergingChests.prefix_with_modname('direct-transfer-frame')]
-        if frame then
-          frame.destroy()
+        for _, root in ipairs({ player.gui.relative, player.gui.left }) do
+          local frame = root[MergingChests.prefix_with_modname('direct-transfer-frame')]
+          if frame then frame.destroy() end
         end
       end
+      for _, object in ipairs(player_state.search_area_render_objects or {}) do object.destroy() end
       data.players[player_index] = nil
     end
   end
+  if train_transfer.restore_gui_handler then train_transfer.restore_gui_handler() end
 end
 local function remove_wagon_from_active_train(data, train_id, wagon_unit_number)
   local active = data.active_trains[train_id]
@@ -728,7 +733,7 @@ function train_transfer.set_mode(entity, mode)
   if mode == train_transfer.modes.off then
     data.modes[entity.unit_number] = nil
     destroy_cybersyn2_shims(data, entity.unit_number, true)
-    unregister_container(data, entity.unit_number)
+    if data.filters[entity.unit_number] == nil then unregister_container(data, entity.unit_number) end
   else
     data.modes[entity.unit_number] = mode
     register_container(data, entity)
@@ -750,6 +755,7 @@ local function set_filter_configuration(entity, configuration)
     return true
   end
   data.filters[entity.unit_number] = configuration
+  register_container(data, entity)
   remove_container_from_active_trains(data, entity.unit_number)
   refresh_trains_near_container(entity)
   return true
@@ -766,6 +772,13 @@ function train_transfer.set_filter_mode(entity, mode)
   local configuration = train_transfer.get_filter_configuration(entity)
   if not configuration then return false end
   configuration.mode = mode
+  return set_filter_configuration(entity, configuration)
+end
+function train_transfer.set_circuit_set_filters(entity, enabled)
+  if type(enabled) ~= 'boolean' then return false end
+  local configuration = train_transfer.get_filter_configuration(entity)
+  if not configuration then return false end
+  configuration.circuit_set_filters = enabled
   return set_filter_configuration(entity, configuration)
 end
 local function get_transferable_slot_count(inventory)
@@ -794,7 +807,7 @@ local function transfer_to_inventory(source_stack, target_inventory, limit)
   end
   return 0
 end
-local function transfer_from_inventory(source_inventory, target_inventory, group, limit)
+local function transfer_from_inventory(source_inventory, target_inventory, group, limit, quotas)
   if source_inventory == nil or target_inventory == nil or #source_inventory == 0 or limit <= 0 then
     return 0
   end
@@ -802,9 +815,13 @@ local function transfer_from_inventory(source_inventory, target_inventory, group
   for offset = 0, #source_inventory - 1 do
     local index = ((start_slot + offset - 2) % #source_inventory) + 1
     local source_stack = source_inventory[index]
-    if source_stack.valid_for_read and filter_configuration.matches(source_stack, group.filter_configuration) then
-      local moved = transfer_to_inventory(source_stack, target_inventory, limit)
+    if source_stack.valid_for_read and ((quotas and group.filter_configuration.circuit_set_filters)
+      or filter_configuration.matches(source_stack, group.filter_configuration)) then
+      local key = quotas and circuit_request.key(source_stack.name, source_stack.quality)
+      local allowed = quotas and math.min(limit, quotas[key] or 0) or limit
+      local moved = allowed > 0 and transfer_to_inventory(source_stack, target_inventory, allowed) or 0
       if moved > 0 then
+        if quotas then quotas[key] = quotas[key] - moved end
         if source_stack.valid_for_read then
           group.source_slot = index
         else
@@ -828,7 +845,7 @@ local function remove_invalid_wagons(group)
     group.next_wagon = 1
   end
 end
-local function process_group(group)
+local function process_group(group, circuit_cycles)
   if group.container == nil or not group.container.valid then
     return false
   end
@@ -841,11 +858,23 @@ local function process_group(group)
     return false
   end
 
+  local unit_number = group.container.unit_number
+  local quotas = circuit_cycles[unit_number]
+  if quotas == nil then
+    quotas = circuit_request.connected(group.container) and circuit_request.read(group.container) or false
+    circuit_cycles[unit_number] = quotas
+  end
+  -- Circuit requests may change during a normal-mode retry; read them every cycle.
+  if quotas then group.retry_after_tick = nil end
   if group.retry_after_tick and game.tick < group.retry_after_tick then
     return true
   end
 
   local remaining = train_transfer.items_per_container_cycle
+  if quotas then
+    remaining = 0
+    for _, count in pairs(quotas) do remaining = remaining + count end
+  end
   while remaining > 0 do
     local moved = 0
     local attempts = #group.wagons
@@ -855,13 +884,13 @@ local function process_group(group)
       local wagon_inventory = wagon.get_inventory(defines.inventory.cargo_wagon)
       local source_inventory = group.mode == train_transfer.modes.load and container_inventory or wagon_inventory
       local target_inventory = group.mode == train_transfer.modes.load and wagon_inventory or container_inventory
-      moved = transfer_from_inventory(source_inventory, target_inventory, group, remaining)
+      moved = transfer_from_inventory(source_inventory, target_inventory, group, remaining, quotas)
       if moved > 0 then
         break
       end
     end
     if moved == 0 then
-      group.retry_after_tick = game.tick + retry_delay_ticks
+      if not quotas then group.retry_after_tick = game.tick + retry_delay_ticks end
       break
     end
 
@@ -873,6 +902,8 @@ local function process_group(group)
 end
 function train_transfer.on_nth_tick()
   local data = ensure_storage()
+  -- A container can have groups in more than one stopped train. Share its quota.
+  local circuit_cycles = {}
   local train_ids_to_stop = {}
   for train_id, active in pairs(data.active_trains) do
     if not is_train_ready_for_transfer(active.train) then
@@ -880,7 +911,7 @@ function train_transfer.on_nth_tick()
     else
       local groups = {}
       for _, group in ipairs(active.groups or {}) do
-        if process_group(group) then
+        if process_group(group, circuit_cycles) then
           table.insert(groups, group)
         end
       end
@@ -964,20 +995,24 @@ local function rebuild_all_cybersyn2_shims()
   end
   for _, surface in pairs(game.surfaces) do
     for _, container in ipairs(surface.find_entities_filtered({ name = train_container_names })) do
-      if container.valid and container.unit_number ~= nil and data.modes[container.unit_number] ~= nil then
-        register_container(data, container)
-        rebuild_cybersyn2_shims(data, container)
+      if container.valid and container.unit_number ~= nil then
+        if data.modes[container.unit_number] ~= nil or data.filters[container.unit_number] ~= nil then
+          register_container(data, container)
+        end
+        if data.modes[container.unit_number] ~= nil then rebuild_cybersyn2_shims(data, container) end
       end
     end
   end
 end
 script.on_init(function()
   migrate_storage()
+  request_inputs.rebuild()
   status_lamps.rebuild()
   update_nth_tick_handler()
 end)
 script.on_configuration_changed(function()
   migrate_storage()
+  request_inputs.rebuild()
   status_lamps.rebuild()
   cleanup_invalid_cybersyn2_shims()
   rebuild_all_cybersyn2_shims()
@@ -989,6 +1024,7 @@ script.on_load(function()
   status_lamps.on_load()
   local data = storage.train_transfer
   set_nth_tick_handler(data ~= nil and (data.active_transfer_count or 0) > 0)
+  if train_transfer.restore_gui_handler then train_transfer.restore_gui_handler() end
 end)
 script.on_event(defines.events.on_train_changed_state, on_train_changed_state)
 script.on_event(defines.events.on_train_created, on_train_created)

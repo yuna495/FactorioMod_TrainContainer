@@ -18,3 +18,9 @@ data:extend(
 		key_sequence = ''
 	}
 })
+for _, axis in ipairs({ 'horizontal', 'vertical' }) do
+	data:extend({ {
+		type = 'custom-input', name = 'train-container-flip-request-input-'..axis,
+		key_sequence = '', linked_game_control = 'flip-'..axis, consuming = 'none',
+	} })
+end

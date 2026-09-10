@@ -7,6 +7,39 @@ local filter_name = MergingChests.prefix_with_modname('direct-transfer-filter')
 local filter_mode_name = MergingChests.prefix_with_modname('direct-transfer-filter-mode')
 local filter_slots_name = MergingChests.prefix_with_modname('direct-transfer-filter-slots')
 local status_label_name = MergingChests.prefix_with_modname('direct-transfer-status')
+local circuit_panel_name = MergingChests.prefix_with_modname('direct-transfer-circuit')
+local circuit_toggle_name = MergingChests.prefix_with_modname('direct-transfer-circuit-filters')
+local circuit_status_name = MergingChests.prefix_with_modname('direct-transfer-circuit-status')
+local refresh_open_guis
+local gui_refresh_interval = 15
+
+function train_transfer.restore_gui_handler()
+	local any = false
+	local data = storage.train_transfer
+	for _, state in pairs(data and data.players or {}) do
+		if state.opened_entity then any = true; break end
+	end
+	script.on_nth_tick(gui_refresh_interval, any and refresh_open_guis or nil)
+end
+
+local function update_circuit_controls(player, entity)
+	local frame = player.gui.relative[frame_name]
+	local panel = frame and frame[circuit_panel_name]
+	if not panel then return end
+	local configuration = train_transfer.get_filter_configuration(entity)
+	local connected = train_transfer.has_green_connection(entity)
+	local toggle = panel[circuit_toggle_name]
+	toggle.state = configuration.circuit_set_filters
+	toggle.enabled = connected
+	panel[circuit_status_name].caption = { 'gui.'..MergingChests.prefix_with_modname(
+		connected and 'direct-transfer-green-connected' or 'direct-transfer-green-disconnected') }
+	local manual = not (connected and configuration.circuit_set_filters)
+	local filters = frame[filter_flow_name]
+	filters[filter_mode_name].enabled = manual
+	for slot = 1, train_transfer.filter_slot_count do
+		filters[filter_slots_name][filter_name..'-'..slot].enabled = manual
+	end
+end
 local search_area_color = { r = 1, g = 0.9, b = 0, a = 0.22 }
 
 local mode_to_index = {
@@ -118,6 +151,7 @@ local function destroy_gui(player)
 		destroy_search_area(storage.train_transfer.players[player.index])
 		storage.train_transfer.players[player.index] = nil
 	end
+	train_transfer.restore_gui_handler()
 end
 
 local function create_gui(player, entity)
@@ -180,6 +214,17 @@ local function create_gui(player, entity)
 			['item-with-quality'] = configuration.slots[slot],
 		})
 	end
+	local circuit_panel = frame.add({ type = 'frame', name = circuit_panel_name, direction = 'vertical',
+		style = 'inside_shallow_frame_with_padding_and_vertical_spacing' })
+	circuit_panel.add({ type = 'label', style = 'heading_2_label', caption = { 'gui-control-behavior.circuit-network' } })
+	circuit_panel.add({ type = 'checkbox', name = circuit_toggle_name,
+		caption = { 'gui-control-behavior-modes.set-filters' }, state = configuration.circuit_set_filters,
+		tooltip = { 'gui.'..MergingChests.prefix_with_modname('direct-transfer-circuit-tooltip') } })
+	circuit_panel.add({ type = 'label', name = circuit_status_name })
+	local input_help = circuit_panel.add({ type = 'label',
+		caption = { 'gui.'..MergingChests.prefix_with_modname('direct-transfer-input-help') } })
+	input_help.style.single_line = false
+	input_help.style.maximal_width = 300
 	frame.add({
 		type = 'label',
 		name = status_label_name,
@@ -189,6 +234,28 @@ local function create_gui(player, entity)
 	local player_state = get_player_state(player.index)
 	player_state.opened_unit_number = entity.unit_number
 	player_state.opened_entity = entity
+	update_circuit_controls(player, entity)
+	train_transfer.restore_gui_handler()
+end
+
+refresh_open_guis = function()
+	local stale = {}
+	for player_index, state in pairs(storage.train_transfer.players or {}) do
+		if state.opened_entity then
+			local player = game.get_player(player_index)
+			if player and state.opened_entity.valid then
+				update_circuit_controls(player, state.opened_entity)
+			else stale[#stale + 1] = player_index end
+		end
+	end
+	for _, player_index in ipairs(stale) do
+		local player = game.get_player(player_index)
+		if player then destroy_gui(player) else
+			destroy_search_area(storage.train_transfer.players[player_index])
+			storage.train_transfer.players[player_index] = nil
+		end
+	end
+	train_transfer.restore_gui_handler()
 end
 
 local function on_gui_opened(event)
@@ -261,6 +328,7 @@ local function sync_filter_guis(entity)
 					panel[filter_slots_name][filter_name..'-'..slot].elem_value = configuration.slots[slot]
 				end
 				update_status(player, entity)
+				update_circuit_controls(player, entity)
 			end
 		end
 	end
@@ -295,6 +363,18 @@ local function on_gui_switch_state_changed(event)
 	local panel = get_event_filter_panel(event)
 	if not entity or not panel or panel[filter_mode_name] ~= element then return end
 	train_transfer.set_filter_mode(entity, element.switch_state == 'right' and 'blacklist' or 'whitelist')
+	sync_filter_guis(entity)
+end
+
+local function on_gui_checked_state_changed(event)
+	local entity = get_opened_entity(event)
+	local player = game.get_player(event.player_index)
+	local frame = player and player.gui.relative[frame_name]
+	local panel = frame and frame[circuit_panel_name]
+	if not entity or not panel or panel[circuit_toggle_name] ~= event.element then return end
+	if train_transfer.has_green_connection(entity) then
+		train_transfer.set_circuit_set_filters(entity, event.element.state)
+	end
 	sync_filter_guis(entity)
 end
 
@@ -333,4 +413,5 @@ script.on_event(defines.events.on_gui_closed, on_gui_closed)
 script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)
 script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
 script.on_event(defines.events.on_gui_switch_state_changed, on_gui_switch_state_changed)
+script.on_event(defines.events.on_gui_checked_state_changed, on_gui_checked_state_changed)
 script.on_event(defines.events.on_selected_entity_changed, on_selected_entity_changed)
